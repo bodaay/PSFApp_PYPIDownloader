@@ -25,11 +25,22 @@ ROOT_FOLDER_NAME = "d:/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
 JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
 
+"""
+I'll follow this folder structure
+
+ROOT
+    - data
+        - package-name
+            - binaries
+            - json
+                index.json
+            __lastserial
+"""
+
 working_path = os.path.join(ROOT_FOLDER_NAME,"sync_data_indexes")
-packages_simple_path = os.path.join(ROOT_FOLDER_NAME, "simple")
-packages_pypi_path = os.path.join(working_path, "pypi")
+packages_data_path = os.path.join(ROOT_FOLDER_NAME, "simple")
 logfile_path = os.path.join(working_path, "logs")
-LastSeqFile = os.path.join(working_path,"__lastsequece")
+JSON_progress_data_file = os.path.join(working_path,"__progress.json")
 BlackListFile = os.path.join(working_path,"__blacklist")
 logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
 
@@ -104,22 +115,29 @@ def FilesMatching(file1, file2):
     # then we check by checksum
     return True
 
-def UpdateLastSeqFile(sequncenumer):
-    with open(LastSeqFile,'w') as f:
-        f.write(str(sequncenumer))
+
+
+def WriteProgressJSON(jsondata,saveBackup=True):
+    if saveBackup:
+        if os.path.exists(JSON_progress_data_file):
+            shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
+    with open(JSON_progress_data_file,'wb') as f:
+        f.write(bytes(json.dumps(jsondata,sort_keys=True),'utf-8'))
+
+GLOBAL_JSON_DATA = {}
 
 def start(argv):
     # I want to get the path of app.py
+    global GLOBAL_JSON_DATA
     base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
     
     if not os.path.exists(ROOT_FOLDER_NAME):
         os.makedirs(ROOT_FOLDER_NAME,exist_ok=True)
     if not os.path.exists(working_path):
         os.makedirs(working_path, exist_ok=True)
-    if not os.path.exists(packages_simple_path):
-        os.makedirs(packages_simple_path, exist_ok=True)
-    if not os.path.exists(packages_pypi_path):
-        os.makedirs(packages_pypi_path, exist_ok=True)
+    if not os.path.exists(packages_data_path):
+        os.makedirs(packages_data_path, exist_ok=True)
+
     if not os.path.exists(logfile_path):
         os.makedirs(logfile_path, exist_ok=True)
     
@@ -153,31 +171,49 @@ def start(argv):
             data=r.content
             f.write(data)
     else:
-        print ("Skipping the download of all packages list, using existing data")
+        print ("as requested, Skipping the download of all packages list, using existing data")
     # open file for reading
     with open(local_temp_file_name, 'r') as f:
         content=f.read()
+    
     tree = html.fromstring(content)
     package_list = [package for package in tree.xpath('//a/text()')]
-    print("Total Number of pacakges: %s" % (colored(len(package_list),'cyan')))
-    print (colored("Filtering out blacklisted packages...",'red'))
-    filtered_package_list = []
+    # sort it
+    package_list.sort()
+   
+    # check old progress json file, if it exists, load it, and them compare if we have new package
+    if os.path.exists(JSON_progress_data_file):
+        print (colored("Making a backup and Loading existing json progress file: %s" %JSON_progress_data_file,'green'))
+        with open (JSON_progress_data_file,'rb') as f:
+            GLOBAL_JSON_DATA = json.loads(f.read())
+        # shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
+    else:
+        print (colored("No Previous progress file found, Creating new progress file: %s" %JSON_progress_data_file,'green'))
+        for p in package_list:
+            GLOBAL_JSON_DATA[p] = {"lastserial": None}
+    print (colored("Filtering out blacklisted packages, if you recently added already downloaded package, you will have to manually delete its data, I'm not doing this for you...",'red'))
     for p in package_list:
         if p not in BaclList_list:
-            filtered_package_list.append(p)
-    print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(filtered_package_list),'cyan')))            
-    return
-    process_update(local_temp_file_name)
+            if p not in GLOBAL_JSON_DATA: # this will cover the case if an item was blacklisted in previous progress, and now we want it
+                 GLOBAL_JSON_DATA[p] = {"lastserial": None}
+    # remove blacklisted from global_json_data
+    for p in BaclList_list: # this will cover the case if an item was wanted in previous progress, and now we need to ignore it
+        if p in GLOBAL_JSON_DATA:
+            del GLOBAL_JSON_DATA[p]
+
+    WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+    print("Total Number of pacakges: %s" % (colored(len(package_list),'cyan')))
+    print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(GLOBAL_JSON_DATA),'cyan')))
+
+    # clear package_list since we are not using it anymore
+    package_list = None
+    # return
+    process_update()
     # # delete index.temp.json
 
     # os.remove(local_temp_file_name)
     return
     # installRequired.CheckRequiredModuels(required_modules)
-
-# https://www.nuget.org/api/v2/package/vlc/1.1.8
-
-
-# lock = Lock()
 
 CatalogJsonFilesToProcess = []
 
@@ -262,8 +298,27 @@ def DownloadAndProcessesItemJob(item):
     except Exception as ex:
         ErrorLog = "Sequence %d\n%s\n%s\n%s\n%s" % (item['seq'],package_name,item_rev, downloadURL, ex)
         SaveAdnAppendToErrorLog(ErrorLog)
-    
-def process_update(json_file):
+
+
+def process_update():
+    global GLOBAL_JSON_DATA
+    print (colored("Checking Initial Download for packages, at this stage we are NOT updating downloaded packages"),'cyan')
+    # in this stage, we will just check if we have the json file for ever package in the list
+    # if we don't have the json file, we will append the package to the list of ToProcess
+    To_Be_Intially_processed = []
+    CheckingIndex = 1
+    Total = len(filtered_package_list)
+    for item in filtered_package_list:
+        SkipThisOne=True
+        sys.stdout.write ("\rChecking package %s  of  %s                                                                                                " %(colored(CheckingIndex,'cyan'),colored(Total,'blue')))
+        package_json_path = os.path.join(packages_data_path,item,"json","index.json")
+        if not os.path.exists(package_json_path):
+            SkipThisOne = False
+        # add more conditions if you want here later, just remember to set SkipThisOne to True
+        if not SkipThisOne:
+            To_Be_Intially_processed.append(item)
+        CheckingIndex += 1
+    return 
     global CatalogJsonFilesToProcess
     with open(json_file, 'r') as jsonfile:
         jsonObj = json.loads(jsonfile.read()) # this may take really long time, for the first run
