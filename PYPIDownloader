@@ -1,0 +1,120 @@
+#!/usr/bin/python3
+import os
+import base64
+import sqlite3
+import os
+import sys
+import shutil
+import importlib
+import zlib
+# The default app folder, MUST have a file named app.py with a function called: def start(argv):
+DEFAULT_APP_FOLDER = "NPMDownloaderApp"
+
+
+def start():
+    module = importlib.import_module(DEFAULT_APP_FOLDER + ".app")
+    module.start(sys.argv)
+
+
+def update():
+    if not os.path.exists(DEFAULT_APP_FOLDER):
+        exit("Cannot update, app folder \"%s\" missing" %
+             (DEFAULT_APP_FOLDER))
+    # init new db file, delete if it exists before
+    temp_dbfile = DEFAULT_APP_FOLDER + ".temp.db"
+    if os.path.exists(temp_dbfile):
+        os.remove(temp_dbfile)
+    conn = sqlite3.connect(temp_dbfile)
+    conn.execute(
+        "CREATE TABLE \"appfiles\" ( `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, `filename` TEXT NOT NULL, `data` BLOB )")
+
+    # Get All files with app folder
+    for dirpath, _, filenames in os.walk(DEFAULT_APP_FOLDER):
+        for name in filenames:
+            if dirpath.endswith("__pycache__"):
+                continue
+            # Read the file content
+            with open(os.path.join(dirpath, name), 'rb') as content:
+                conn.execute(
+                    "INSERT INTO appfiles(filename,data) VALUES (?,?)", [os.path.join(dirpath, name), content.read()])
+    conn.commit()
+    conn.close()
+    with open(temp_dbfile, 'rb') as d:
+        compressedData = zlib.compress(d.read(), 9)
+        dbbytes_base64 = base64.b64encode(compressedData).decode('utf-8')
+        d.close()
+        with open(sys.argv[0], 'r') as w:
+            lines = w.readlines()
+            w.close()
+            for i in range(0, len(lines)):
+                if lines[i].startswith("--DATA-BEGIN-ZLIB-COMPRESSED"):
+                    lines[i+1] = dbbytes_base64 + "\n"
+                    break
+            with open(sys.argv[0], 'w') as wr:
+                wr.writelines(lines)
+            print("I've updated myself :)")
+            os.remove(temp_dbfile)
+
+
+def install():
+    # we will read outself, data should be place at the end of this file
+    myselffile = sys.argv[0]
+    dataBase64 = ""
+    with open(myselffile, 'r') as w:
+        lines = w.readlines()
+        w.close()
+        for i in range(0, len(lines)):
+            if lines[i].startswith("--DATA-BEGIN-ZLIB-COMPRESSED"):
+                # -1 for line break at the end of the file
+                dataBase64 = lines[i+1][:-1]
+                break
+
+    db_bytes_compressed = base64.b64decode(dataBase64)
+    db_bytes_extracted = zlib.decompress(db_bytes_compressed)
+    temp_dbfile = DEFAULT_APP_FOLDER + ".temp.db"
+    if os.path.exists(temp_dbfile):
+        os.remove(temp_dbfile)
+    with open(temp_dbfile, 'wb') as w:
+        w.write(db_bytes_extracted)
+        conn = sqlite3.connect(temp_dbfile)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("select * from appfiles")
+            results = cursor.fetchall()
+            if not os.path.exists(DEFAULT_APP_FOLDER):
+                os.makedirs(DEFAULT_APP_FOLDER)
+            for _, r_filename, r_data in results:
+                os.makedirs(os.path.dirname(r_filename), exist_ok=True)
+                with open(r_filename, 'wb') as w:
+                    w.write(r_data)
+        except Exception as ex:
+            exit(ex)
+        os.remove(temp_dbfile)
+
+
+def main():
+    RunMode = "start"
+    if len(sys.argv) > 1:
+        RunMode = sys.argv[1].lower()
+    if RunMode == "start":
+        if not os.path.exists(DEFAULT_APP_FOLDER):
+            install()
+        start()
+    elif RunMode == "install":
+        if os.path.exists(DEFAULT_APP_FOLDER):
+            shutil.rmtree(DEFAULT_APP_FOLDER, ignore_errors=True)
+        install()
+        start()
+    elif RunMode == "update":
+        update()
+
+
+if __name__ == "__main__":
+    main()
+
+
+"""
+--DATA-BEGIN-ZLIB-COMPRESSED
+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
+--DATA-END-ZLIB-COMPRESSED
+"""
