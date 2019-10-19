@@ -1,0 +1,99 @@
+# just put each package you don't want on a new line, you can add # beinging of line to keep package instead of deleting the new line, this based on stats page at: https://pypi.org/stats/
+tf-nightly-gpu
+tf-nightly-gpu-2.0-preview
+tf-nightly
+mxnet-cu80
+mxnet-cu80mkl
+tf-nightly-2.0-preview
+mxnet-cu90
+catboost-dev
+mxnet-cu90mkl
+mxnet-cu92
+mxnet-cu92mkl
+lalsuite
+mxnet-cu100
+mxnet-cu100mkl
+# tensorflow-gpu
+# frida
+mxnet-cu101
+mxnet-cu101mkl
+tensorflow-io-nightly
+# OpenVisus
+# tensorflow
+# cupy-cuda91
+cupy-cuda90
+cupy-cuda92
+cupy-cuda100
+cupy-cuda80
+mxnet-cu91
+mxnet-cu91mkl
+cupy-cuda101
+tensorflow-io-2.0-preview
+# deepspeech-gpu
+# torch
+# mxnet
+# catboost
+# grpcio-tools
+# CodeIntel
+# sickrage
+tf-nightly-cpu
+# udata
+# allennlp-pvt-nightly
+# scipy
+# opencv-contrib-python
+# opencv-python
+# codeforlife-portal
+# pyagrum-nightly
+# numpy
+# cmake
+# tendenci
+# mxnet-cu75
+# pystan
+# Panda3D
+# rasterio
+# opencv-contrib-python-headless
+# tensorflow-rocm
+# casadi
+# grpcio
+# mxnet-cu75mkl
+# cntk-gpu
+# pyqt5-tools
+# opencv-python-headless
+# matplotlib
+# PySide2
+# deepspeech
+# inlineplz
+# bohrium-api
+# nlpia
+# paddlepaddle
+# kolibri
+# Fiona
+# nimbusml
+# spacy
+# gensim
+# cityenergyanalyst
+# bagpipes
+# turicreate
+# snappy
+# xpress
+# ray
+# pandas
+# ccxt
+# itk-filtering
+# python-libsbml-experimental
+# roboschool
+# pantsbuild.pants
+# reynir
+# botocore
+# SimpleITK
+# h2o
+# pmagpy
+# pynets
+# epicscorelibs
+# fsleyes
+# beakerx
+# scikit-image
+# tensorflow-cpu
+# FlexGet
+# gym-retro
+# jaxlib

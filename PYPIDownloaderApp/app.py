@@ -14,20 +14,27 @@ import urllib.parse
 from datetime import datetime
 # I'm using thead pool, because its easier and I can use global variables easily with it, We don't need high processing power for this project, just multi thread
 from multiprocessing.pool import ThreadPool
+from lxml import html# pip install lxml
 from termcolor import colored
 from zipfile import ZipFile
 import tqdm  # pip3 install tqdm
 import re
 
 MaxItemsToProcess = 30
-ROOT_FOLDER_NAME = "e:/NPM/"
-SkimDB_Main_Registry_Link = "https://skimdb.npmjs.com/registry/"
+ROOT_FOLDER_NAME = "d:/PYPI/"
+MAIN_Packages_List_Link = "https://pypi.org/simple/"
+JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
+
 working_path = os.path.join(ROOT_FOLDER_NAME,"sync_data_indexes")
-packages_path = os.path.join(ROOT_FOLDER_NAME, "data")
+packages_simple_path = os.path.join(ROOT_FOLDER_NAME, "simple")
+packages_pypi_path = os.path.join(working_path, "pypi")
 logfile_path = os.path.join(working_path, "logs")
 LastSeqFile = os.path.join(working_path,"__lastsequece")
+BlackListFile = os.path.join(working_path,"__blacklist")
 logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
-   
+
+
+SkipDownloadingListFile=True
 
 def GetMD5(file1):
     if not os.path.exists(file1):
@@ -103,41 +110,63 @@ def UpdateLastSeqFile(sequncenumer):
 
 def start(argv):
     # I want to get the path of app.py
-    #base_path = os.path.dirname(os.path.realpath(__file__))
-
+    base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
+    
+    if not os.path.exists(ROOT_FOLDER_NAME):
+        os.makedirs(ROOT_FOLDER_NAME,exist_ok=True)
     if not os.path.exists(working_path):
         os.makedirs(working_path, exist_ok=True)
-    if not os.path.exists(packages_path):
-        os.makedirs(packages_path, exist_ok=True)
+    if not os.path.exists(packages_simple_path):
+        os.makedirs(packages_simple_path, exist_ok=True)
+    if not os.path.exists(packages_pypi_path):
+        os.makedirs(packages_pypi_path, exist_ok=True)
     if not os.path.exists(logfile_path):
         os.makedirs(logfile_path, exist_ok=True)
     
-    print ("Connecting to SkimDB to get latest Stats...")
-    r = requests.get(SkimDB_Main_Registry_Link, timeout=600)
-    statsJson = json.loads(r.content)
-    # print(statsJson)
-    print ("Total Number of packages: "+ colored(str(statsJson['doc_count']),'red'))
-    LatestSeq = "0"
-    if os.path.exists(LastSeqFile):
-        with open(LastSeqFile,'r') as ls:
-            LatestSeq=  ls.readline()
-    if LatestSeq == str(statsJson['committed_update_seq']):
-        print (colored('No Updates since latest run, nothing to do...Bye','red'))
-    ChangesFeedURLSuffix="_changes?feed=normal&style=all_docs&since=" + LatestSeq
-    local_temp_file_name = os.path.join(working_path, "changesfeed.temp.json")
-    if os.path.exists(local_temp_file_name):
-        os.remove(local_temp_file_name)
-    r = requests.get(SkimDB_Main_Registry_Link + ChangesFeedURLSuffix)
-    print ("Last Proccessed Squence: %s  out of %s  \n"%(colored(LatestSeq,'cyan'),colored(str(statsJson['committed_update_seq']),'red')))
-    with open(local_temp_file_name, 'wb') as f:
-        data=r.content
-        f.write(data)
-        print("Total Downloaded: "+ colored("%s"%humanbytes(len(data)),'cyan') +"     \r")
-    # test only
-    # UpdateLastSeqFile(str(statsJson['committed_update_seq'])) # delete me later, we should do this at very late stage
-
-
-    
+    #check if black list file does not exists
+    if not os.path.exists(BlackListFile):
+        print (colored("Blacklist file couldn't be found, creating one from template, review it and run the script again",'red'))
+        shutil.copyfile(os.path.join(base_scirpt_path,"__blacklist_template"),BlackListFile)# Copy from template to destination
+        exit (1)
+    print (colored('Loading blacklist packages...','green'))
+    BaclList_list = []
+    with open(BlackListFile,'r') as f:
+        line = f.readline()
+        cnt = 1
+        while line:
+            # print("Line {}: {}".format(cnt, line.strip()))
+            line = f.readline()
+            if line:
+                line=line.strip()
+                if not str(line).startswith("#"):
+                    BaclList_list.append(line)
+                    cnt += 1
+    content=None
+    local_temp_file_name = os.path.join(working_path, "htmlfiles.temp.html")
+    if not SkipDownloadingListFile or not os.path.exists(local_temp_file_name):
+        print ("Downloading All Packages list from: %s" % (colored(MAIN_Packages_List_Link,'green')) )
+        r = requests.get(MAIN_Packages_List_Link, timeout=600)
+        content=r.content
+        if os.path.exists(local_temp_file_name):
+            os.remove(local_temp_file_name)
+        with open(local_temp_file_name, 'wb') as f:
+            data=r.content
+            f.write(data)
+    else:
+        print ("Skipping the download of all packages list, using existing data")
+    # open file for reading
+    with open(local_temp_file_name, 'r') as f:
+        content=f.read()
+    tree = html.fromstring(content)
+    package_list = [package for package in tree.xpath('//a/text()')]
+    print("Total Number of pacakges: %s" % (colored(len(package_list),'cyan')))
+    print (colored("Filtering out blacklisted packages...",'red'))
+    filtered_package_list = []
+    for p in package_list:
+        if p not in BaclList_list:
+            filtered_package_list.append(p)
+    print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(filtered_package_list),'cyan')))            
+    return
     process_update(local_temp_file_name)
     # # delete index.temp.json
 
