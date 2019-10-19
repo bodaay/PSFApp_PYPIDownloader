@@ -192,9 +192,10 @@ def start(argv):
         for p in package_list:
             GLOBAL_JSON_DATA[p] = {"lastserial": None}
     print (colored("Filtering out blacklisted packages, if you recently added already downloaded package, you will have to manually delete its data, I'm not doing this for you...",'red'))
+    print (colored("I'm not doing this because you may want to initially download the package, then stop future re-runs of the same package, got it?",'red'))
     for p in package_list:
         if p not in BaclList_list:
-            if p not in GLOBAL_JSON_DATA: # this will cover the case if an item was blacklisted in previous progress, and now we want it
+            if p not in GLOBAL_JSON_DATA: # this will cover the case if an item was blacklisted in previous progress, and now we want it now , AND, it will cover the case for new packages added to pypi
                  GLOBAL_JSON_DATA[p] = {"lastserial": None}
     # remove blacklisted from global_json_data
     for p in BaclList_list: # this will cover the case if an item was wanted in previous progress, and now we need to ignore it
@@ -305,50 +306,42 @@ def process_update():
     print (colored("Checking Initial Download for packages, at this stage we are NOT updating downloaded packages"),'cyan')
     # in this stage, we will just check if we have the json file for ever package in the list
     # if we don't have the json file, we will append the package to the list of ToProcess
-    To_Be_Intially_processed = []
-    CheckingIndex = 1
-    Total = len(filtered_package_list)
-    for item in filtered_package_list:
-        SkipThisOne=True
-        sys.stdout.write ("\rChecking package %s  of  %s                                                                                                " %(colored(CheckingIndex,'cyan'),colored(Total,'blue')))
-        package_json_path = os.path.join(packages_data_path,item,"json","index.json")
-        if not os.path.exists(package_json_path):
-            SkipThisOne = False
-        # add more conditions if you want here later, just remember to set SkipThisOne to True
-        if not SkipThisOne:
-            To_Be_Intially_processed.append(item)
-        CheckingIndex += 1
-    return 
-    global CatalogJsonFilesToProcess
-    with open(json_file, 'r') as jsonfile:
-        jsonObj = json.loads(jsonfile.read()) # this may take really long time, for the first run
-        print(colored('Sorting out records, this may take some time...','red'))
-        results = jsonObj['results']
-        results_sorted = sorted(results, key=lambda k: k['seq']) 
-        print(colored('finished sorting','cyan'))
-        print (colored('Processing items in batches','green'))
-        starting_index = 0
-        Batch_Index = 0
-        All_records=len(results_sorted)
-        Total_Number_of_Batches = math.ceil(All_records/MaxItemsToProcess)
-        print (colored('Total Number of batches: %d'%(Total_Number_of_Batches),'cyan'))
-        while starting_index < All_records:
-            Total_To_Process = MaxItemsToProcess
-            if All_records - starting_index < MaxItemsToProcess:
-                Total_To_Process = All_records - starting_index
-                print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
-            print (colored("Processing Batch %d     of     %d"%(Batch_Index,Total_Number_of_Batches)   ,'green'))
-            itemBatch = results_sorted[starting_index:starting_index+Total_To_Process]
-            pool = ThreadPool(processes=MaxItemsToProcess)
-            # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-            list(tqdm.tqdm(pool.imap(DownloadAndProcessesItemJob,
-                                    itemBatch), total=len(itemBatch), ))
+    
+    TotalProcessed = 0
+    Total = len(GLOBAL_JSON_DATA)
+    To_Initial_Process_Sorted = []
+    for k in GLOBAL_JSON_DATA:
+        if GLOBAL_JSON_DATA[k]["lastserial"] is None:
+            To_Initial_Process_Sorted.append(k)# GLOBAL_JSON_DATA[k]["InitialProcessed"] = False
+        else:
+            TotalProcessed += 1
+    To_Initial_Process_Sorted.sort()
 
-            pool.close()
-            pool.join()
-            starting_index += Total_To_Process
-            Batch_Index += 1
-            UpdateLastSeqFile(itemBatch[-1]['seq']) # last item sequence number in batch
+    # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+    print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
+    # print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(GLOBAL_JSON_DATA),'cyan')))
+    starting_index = 0
+    Batch_Index = 0
+    All_records=len(To_Initial_Process_Sorted)
+    Total_Number_of_Batches = math.ceil(All_records/MaxItemsToProcess)
+    print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,MaxItemsToProcess),'cyan'))
+    while starting_index < All_records:
+        Total_To_Process = MaxItemsToProcess
+        if All_records - starting_index < MaxItemsToProcess:
+            Total_To_Process = All_records - starting_index
+            print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
+        continue
+        print (colored("Processing Batch %d     of     %d"%(Batch_Index,Total_Number_of_Batches)   ,'green'))
+        itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
+        pool = ThreadPool(processes=MaxItemsToProcess)
+        # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
+        list(tqdm.tqdm(pool.imap(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+
+        pool.close()
+        pool.join()
+        starting_index += Total_To_Process
+        Batch_Index += 1
+        # UpdateLastSeqFile(itemBatch[-1]['seq']) # last item sequence number in batch
          
-        print(colored('Done :)','cyan'))
+    print(colored('Done :)','cyan'))
 
