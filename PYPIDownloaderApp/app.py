@@ -343,9 +343,10 @@ def DownloadAndProcessesItemJob(key):
                     continue
         # write the index.html file
         links_html_string = ""
-        extras = ""
+        
          
         for d in downloaded_releases:
+            extras = ""
             href_copy = str(INDEX_HTML_LINKS_TEMPLATE)
             # <a href="@@@FILE_URL@@@">@@@FILE_NAME@@@</a><br/>
             sha256 = d['digests']['sha256']
