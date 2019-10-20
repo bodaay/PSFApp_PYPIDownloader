@@ -18,6 +18,7 @@ from multiprocessing.pool import ThreadPool
 from lxml import html# pip install lxml
 from termcolor import colored
 from zipfile import ZipFile 
+from distutils.version import StrictVersion
 import tqdm  # pip3 install tqdm
 import re
 
@@ -306,6 +307,12 @@ def DownloadAndProcessesItemJob(key):
         index_html_string = str(INDEX_HTML_TEMPLATE)
         
         downloaded_releases = []
+        sorted_releases = sorted(releases)
+        if normalize_package_name=="numpy":
+            print ("AAAAAAAAAAA")
+            print (sorted_releases[-1])
+            print ("AAAAAAAAAAA")
+        # return
         for r in releases:
             for rr in releases[r]:
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests']}
