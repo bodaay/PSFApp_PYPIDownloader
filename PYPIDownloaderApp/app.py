@@ -23,6 +23,7 @@ import re
 
 MaxItemsToProcess = 30
 MaxNumberOfDownloadRetries = 2
+SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "d:/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
 JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
@@ -53,7 +54,7 @@ BlackListFile = os.path.join(working_path,"__blacklist")
 logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
 
 
-SkipDownloadingListFile=True
+
 
 
 MAIN_INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
@@ -416,7 +417,6 @@ def process_update():
 
     # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
-    # print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(GLOBAL_JSON_DATA),'cyan')))
     starting_index = To_Initial_Process_Sorted.index("numpy") # a very easy and nice way to test out single package download
     # starting_index = 0 
     Batch_Index = 0
