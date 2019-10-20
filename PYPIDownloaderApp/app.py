@@ -16,12 +16,12 @@ from datetime import datetime
 from multiprocessing.pool import ThreadPool
 from lxml import html# pip install lxml
 from termcolor import colored
-from zipfile import ZipFile
+from zipfile import ZipFile 
 import tqdm  # pip3 install tqdm
 import re
 
 MaxItemsToProcess = 30
-ROOT_FOLDER_NAME = "d:/PYPI/"
+ROOT_FOLDER_NAME = "e:/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
 JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
 
@@ -29,12 +29,18 @@ JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
 I'll follow this folder structure
 
 ROOT
-    - data
+    - simple
         - package-name
             - binaries
             - json
-                index.json
-            __lastserial
+              - index.json
+            - __lastserial
+            - index.html
+    - sync_data_indexes
+        - logs
+            - FailedList_%d-%m-%Y_%H_%M.log
+        - __progress.json
+        - __blacklist
 """
 
 working_path = os.path.join(ROOT_FOLDER_NAME,"sync_data_indexes")
@@ -46,6 +52,22 @@ logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%
 
 
 SkipDownloadingListFile=True
+
+
+
+INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
+<html>
+  <head>
+    <title>Links for @@@PACKAGE_NAME@@@</title>
+  </head>
+  <body>
+    <h1>Links for @@@PACKAGE_NAME@@@</h1>
+@@@LINKS@@@
+  </body>
+</html>
+<!--SERIAL @@@SERIAL@@@-->"""
+
+INDEX_HTML_LINKS_TEMPLATE="""\t\t\t<a href="@@@FILE_URL@@@">@@@FILE_NAME@@@</a><br/>"""
 
 def GetMD5(file1):
     if not os.path.exists(file1):
@@ -190,13 +212,13 @@ def start(argv):
     else:
         print (colored("No Previous progress file found, Creating new progress file: %s" %JSON_progress_data_file,'green'))
         for p in package_list:
-            GLOBAL_JSON_DATA[p] = {"lastserial": None}
+            GLOBAL_JSON_DATA[p] = {"last_serial": None}
     print (colored("Filtering out blacklisted packages, if you recently added already downloaded package, you will have to manually delete its data, I'm not doing this for you...",'red'))
     print (colored("I'm not doing this because you may want to initially download the package, then stop future re-runs of the same package, got it?",'red'))
     for p in package_list:
         if p not in BaclList_list:
             if p not in GLOBAL_JSON_DATA: # this will cover the case if an item was blacklisted in previous progress, and now we want it now , AND, it will cover the case for new packages added to pypi
-                 GLOBAL_JSON_DATA[p] = {"lastserial": None}
+                 GLOBAL_JSON_DATA[p] = {"last_serial": None}
     # remove blacklisted from global_json_data
     for p in BaclList_list: # this will cover the case if an item was wanted in previous progress, and now we need to ignore it
         if p in GLOBAL_JSON_DATA:
@@ -238,9 +260,85 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
+def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def DownloadAndProcessesItemJob(item):
+def DownloadAndProcessesItemJob(key):
+    normalize_package_name = normalize(key)
+    item=GLOBAL_JSON_DATA[key]
+    # item['lastserial'] = 1
+    # print (GLOBAL_JSON_DATA[item])
+
+
+    # steps to be done
+    # 1- Get the json file, and save a copy in the respected folder
+    # 2- Download all files into required folder
+    # 3- Generate index.html file for the package
+    # set last serial to the same value as in json file
+    # save __lastserial as text file withn package folder
+
+    
+    # Get the json file
+    try:
+        r = requests.get(JSON_Info_Link_Prefix + normalize_package_name + "/json/",timeout=10)
+        package_path = os.path.join(packages_data_path,normalize_package_name)
+        package_json_path = os.path.join(package_path,"json")
+        jsonfile = os.path.join(package_json_path,"index.json")
+        indexfile = os.path.join(package_path,"index.html")
+        binariespath = os.path.join(package_path,"binaries")
+        os.makedirs(binariespath,exist_ok=True)
+        os.makedirs(package_json_path,exist_ok=True)
+        jsonContent_raw = r.content
+        jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
+        with open(jsonfile,'wb') as f:
+            f.write(bytes(json.dumps(jsonObj,indent=2),'utf-8'))
+        last_serial = jsonObj['last_serial']
+        releases = jsonObj['releases']
+        index_html_string = str(INDEX_HTML_TEMPLATE)
+        
+        downloaded_releases = []
+        for r in releases:
+            for rr in releases[r]:
+                package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests']}
+                try:
+                    r= requests.get(package_file['url'])
+                    # if all good, append it
+                    file_path = os.path.join(binariespath,package_file['filename'])
+                    with open(file_path,'wb') as f:
+                        f.write(r.content)
+                    downloaded_releases.append(package_file)   
+                except Exception as ex:
+                    ErrorLog = "File %s\n%s\n" % (key, ex)
+                    SaveAdnAppendToErrorLog(ErrorLog)
+                    continue
+                
+
+                    
+
+        # write the index.html file
+        links_html_string = ""
+         # if download is successfull, append this to downloaded_releases
+        for d in downloaded_releases:
+            href_copy = str(INDEX_HTML_LINKS_TEMPLATE)
+            # <a href="@@@FILE_URL@@@">@@@FILE_NAME@@@</a><br/>
+            sha256 = d['digests']['sha256']
+            href_copy = href_copy.replace("@@@FILE_NAME@@@",d['filename'])
+            href_copy = href_copy.replace("@@@FILE_URL@@@", "binaries/%s#sha256=%s" %(d['filename'],sha256) )
+            links_html_string += href_copy + "\n"
+        index_html_string=index_html_string.replace("@@@PACKAGE_NAME@@@",normalize_package_name)
+        index_html_string=index_html_string.replace("@@@SERIAL@@@",str.format("%d"%last_serial))
+        index_html_string=index_html_string.replace("@@@LINKS@@@",links_html_string)
+        with open(indexfile,'wb') as f:
+            f.write(bytes(index_html_string,'utf-8'))
+    except Exception as ex:
+        ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
+        SaveAdnAppendToErrorLog(ErrorLog)
+        return
+    
+
+
+    return
     package_name= item['id']
     packageFolderRoot = os.path.join(packages_path,item['id'])
     packageFolderTar = os.path.join(packageFolderRoot,"-")
@@ -311,7 +409,7 @@ def process_update():
     Total = len(GLOBAL_JSON_DATA)
     To_Initial_Process_Sorted = []
     for k in GLOBAL_JSON_DATA:
-        if GLOBAL_JSON_DATA[k]["lastserial"] is None:
+        if GLOBAL_JSON_DATA[k]["last_serial"] is None:
             To_Initial_Process_Sorted.append(k)# GLOBAL_JSON_DATA[k]["InitialProcessed"] = False
         else:
             TotalProcessed += 1
@@ -330,7 +428,6 @@ def process_update():
         if All_records - starting_index < MaxItemsToProcess:
             Total_To_Process = All_records - starting_index
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
-        continue
         print (colored("Processing Batch %d     of     %d"%(Batch_Index,Total_Number_of_Batches)   ,'green'))
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
         pool = ThreadPool(processes=MaxItemsToProcess)
@@ -341,6 +438,10 @@ def process_update():
         pool.join()
         starting_index += Total_To_Process
         Batch_Index += 1
+        # write back progress
+        
+        WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
+        return
         # UpdateLastSeqFile(itemBatch[-1]['seq']) # last item sequence number in batch
          
     print(colored('Done :)','cyan'))
