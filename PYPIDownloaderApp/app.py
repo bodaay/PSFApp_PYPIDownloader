@@ -11,6 +11,7 @@ import base64
 import codecs
 import math
 import urllib.parse
+import html as htmlescape # I don't want to get mixed up with below lxml
 from datetime import datetime
 # I'm using thead pool, because its easier and I can use global variables easily with it, We don't need high processing power for this project, just multi thread
 from multiprocessing.pool import ThreadPool
@@ -21,7 +22,8 @@ import tqdm  # pip3 install tqdm
 import re
 
 MaxItemsToProcess = 30
-ROOT_FOLDER_NAME = "e:/PYPI/"
+MaxNumberOfDownloadRetries = 2
+ROOT_FOLDER_NAME = "d:/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
 JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
 
@@ -54,6 +56,16 @@ logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%
 SkipDownloadingListFile=True
 
 
+MAIN_INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
+<html>
+  <head>
+    <title>Simple Index</title>
+  </head>
+  <body>
+@@@LINKS@@@
+  </body>
+</html>"""
+
 
 INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
 <html>
@@ -67,7 +79,7 @@ INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
 </html>
 <!--SERIAL @@@SERIAL@@@-->"""
 
-INDEX_HTML_LINKS_TEMPLATE="""\t\t\t<a href="@@@FILE_URL@@@">@@@FILE_NAME@@@</a><br/>"""
+INDEX_HTML_LINKS_TEMPLATE="""\t\t\t<a href="@@@FILE_URL@@@" @@@EXTRAS@@@ >@@@FILE_NAME@@@</a><br/>"""
 
 def GetMD5(file1):
     if not os.path.exists(file1):
@@ -267,18 +279,12 @@ def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
     item=GLOBAL_JSON_DATA[key]
-    # item['lastserial'] = 1
-    # print (GLOBAL_JSON_DATA[item])
-
-
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
     # 3- Generate index.html file for the package
     # set last serial to the same value as in json file
     # save __lastserial as text file withn package folder
-
-    
     # Get the json file
     try:
         r = requests.get(JSON_Info_Link_Prefix + normalize_package_name + "/json/",timeout=10)
@@ -286,6 +292,7 @@ def DownloadAndProcessesItemJob(key):
         package_json_path = os.path.join(package_path,"json")
         jsonfile = os.path.join(package_json_path,"index.json")
         indexfile = os.path.join(package_path,"index.html")
+        serialfile = os.path.join(package_path,"__lastserial")
         binariespath = os.path.join(package_path,"binaries")
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
@@ -301,102 +308,94 @@ def DownloadAndProcessesItemJob(key):
         for r in releases:
             for rr in releases[r]:
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests']}
+                numberOfTries = 0
+                Failed=True
                 try:
-                    r= requests.get(package_file['url'])
-                    # if all good, append it
-                    file_path = os.path.join(binariespath,package_file['filename'])
-                    with open(file_path,'wb') as f:
-                        f.write(r.content)
-                    downloaded_releases.append(package_file)   
+                    while numberOfTries<MaxNumberOfDownloadRetries:
+                        r= requests.get(package_file['url'])
+                        data = r.content
+                        # if all good, append it
+                        file_path = os.path.join(binariespath,package_file['filename'])
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        with open(file_path,'wb') as f:
+                            f.write(data)
+                        # verify hash
+                        sha256=GetSHA256(file_path)
+                        
+                        if sha256==package_file['digests']['sha256']:
+                            # if it has signature, download it
+                            if package_file['has_sig'] == True:
+                                r=requests.get(package_file['url'] + ".asc")
+                                with open (file_path + ".asc",'wb') as f:
+                                    f.write(r.content)
+                            Failed=False
+                            break
+                        numberOfTries += 1
+                       
+                    # if download is successfull, append this to downloaded_releases
+                    if not Failed:
+                        downloaded_releases.append(package_file)   
                 except Exception as ex:
                     ErrorLog = "File %s\n%s\n" % (key, ex)
                     SaveAdnAppendToErrorLog(ErrorLog)
                     continue
-                
-
-                    
-
         # write the index.html file
         links_html_string = ""
-         # if download is successfull, append this to downloaded_releases
+        extras = ""
+         
         for d in downloaded_releases:
             href_copy = str(INDEX_HTML_LINKS_TEMPLATE)
             # <a href="@@@FILE_URL@@@">@@@FILE_NAME@@@</a><br/>
             sha256 = d['digests']['sha256']
             href_copy = href_copy.replace("@@@FILE_NAME@@@",d['filename'])
             href_copy = href_copy.replace("@@@FILE_URL@@@", "binaries/%s#sha256=%s" %(d['filename'],sha256) )
+            if d['requires_python'] is not None:
+                extras += " data-requires-python=\"" + htmlescape.escape(d['requires_python']) +"\" "
+            if d['has_sig'] == True:
+                extras += " data-gpg-sig=\"true\" "
+            href_copy = href_copy.replace("@@@EXTRAS@@@",extras)
             links_html_string += href_copy + "\n"
         index_html_string=index_html_string.replace("@@@PACKAGE_NAME@@@",normalize_package_name)
         index_html_string=index_html_string.replace("@@@SERIAL@@@",str.format("%d"%last_serial))
         index_html_string=index_html_string.replace("@@@LINKS@@@",links_html_string)
+        # write index.html
+        if os.path.exists(indexfile):
+            os.remove(indexfile)
         with open(indexfile,'wb') as f:
             f.write(bytes(index_html_string,'utf-8'))
+        # write serial file
+        if os.path.exists(serialfile):
+            os.remove(serialfile)
+        with open(serialfile,'w') as f:
+            f.write(str.format("%d"%last_serial))
+        item['last_serial'] = last_serial
     except Exception as ex:
         ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         SaveAdnAppendToErrorLog(ErrorLog)
         return
-    
 
 
-    return
-    package_name= item['id']
-    packageFolderRoot = os.path.join(packages_path,item['id'])
-    packageFolderTar = os.path.join(packageFolderRoot,"-")
-    rev_file = os.path.join(packageFolderRoot,"__rev")
-    item_rev=item['changes'][0]['rev'].strip()
-    package_name_url_safe = urllib.parse.quote(package_name, safe='')
-    json_index_file = os.path.join(packageFolderRoot,"index.json")
-    # first we need to download the json file and name it as index.json
-    if 'deleted' in item:
-        if item['deleted']==True:
-            if os.path.exists(packageFolderRoot):
-                shutil.rmtree(packageFolderRoot)
-            return # skip this item
-    try:
-        os.makedirs(packageFolderTar,exist_ok=True) # this will make all folders required, including "-" which is used to store the tar balls
-    except Exception as ex:
-        ErrorLog = "Sequence %d\n%s\n%s\n%s\n%s" % (item['seq'],package_name,item_rev, packageFolderTar, ex)
-        SaveAdnAppendToErrorLog(ErrorLog)
-        return
-    
-    # we will store a file indicating latest revision we processed
-    CurrentRev=None
-    # ShouldProcess=False
-    if os.path.exists(rev_file):
-        with open (rev_file,'r') as f:
-            CurrentRev=f.readline().strip()
-    if CurrentRev:
-        if CurrentRev==item_rev:
-            # print(colored("package '%s' with same rev %s number, will be skipped"%(item['id'],item_rev),'red'))
-            return
-    try:
-        #write json index file
-        downloadURL = SkimDB_Main_Registry_Link + package_name_url_safe
-        r = requests.get(downloadURL,timeout=20)
-        json_raw=r.content
-        with open(json_index_file, 'wb') as f:
-            f.write(json_raw)
-        jsonObj = json.loads(json_raw)
-        # now we will download all tar balls
-        AllGood = True
-        versions_dict = jsonObj['versions']
-        for k in versions_dict:
-            try:
-                tarBallDownloadLink = versions_dict[k]['dist']['tarball']
-                r = requests.get(tarBallDownloadLink, timeout=600)
-                fname = tarBallDownloadLink.rsplit('/', 1)[-1]
-                tarBallLocalFile=os.path.join(packageFolderTar,fname)
-                with open(tarBallLocalFile, 'wb') as f:
-                    f.write(r.content)
-            except Exception as ex:
-                AllGood = False
-                ErrorLog = "Sequence %d\n%s\n%s\n%s\n%s" % (item['seq'],package_name,item_rev, tarBallDownloadLink, ex)
-                SaveAdnAppendToErrorLog(ErrorLog)
-        if AllGood: # if all good, write the rev file, so we will never process this sequence again, unless its updated
-            WriteTextFile(rev_file,item_rev)
-    except Exception as ex:
-        ErrorLog = "Sequence %d\n%s\n%s\n%s\n%s" % (item['seq'],package_name,item_rev, downloadURL, ex)
-        SaveAdnAppendToErrorLog(ErrorLog)
+def WriteMainIndexHTML():
+    mainIndexFile = os.path.join(packages_data_path,"index.html")
+    htmlData = str(MAIN_INDEX_HTML_TEMPLATE)
+    links = ""
+    extras = ""
+    for p in GLOBAL_JSON_DATA:
+        if GLOBAL_JSON_DATA[p]["last_serial"] is None: # ignore not finished
+            continue
+        normalized = normalize(p)
+        href_copy = str(INDEX_HTML_LINKS_TEMPLATE)
+        href_copy = href_copy.replace("@@@FILE_NAME@@@",normalized)
+        # href_copy = href_copy.replace("@@@FILE_URL@@@", "/simple/%s/" %(normalized) ) # I think using relative path better
+        href_copy = href_copy.replace("@@@FILE_URL@@@", "%s/" %(normalized) )
+        href_copy = href_copy.replace("@@@EXTRAS@@@",extras) # we will never have extras in main index.html
+        links += href_copy + "\n"
+    htmlData=htmlData.replace("@@@LINKS@@@",links)
+    if os.path.exists(mainIndexFile):
+        os.remove(mainIndexFile)
+    with open(mainIndexFile,'w') as f:
+        f.write(htmlData)
 
 
 def process_update():
@@ -418,17 +417,19 @@ def process_update():
     # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
     # print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(GLOBAL_JSON_DATA),'cyan')))
-    starting_index = 0
+    starting_index = To_Initial_Process_Sorted.index("numpy") # a very easy and nice way to test out single package download
+    # starting_index = 0 
     Batch_Index = 0
     All_records=len(To_Initial_Process_Sorted)
     Total_Number_of_Batches = math.ceil(All_records/MaxItemsToProcess)
     print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,MaxItemsToProcess),'cyan'))
+    
     while starting_index < All_records:
         Total_To_Process = MaxItemsToProcess
         if All_records - starting_index < MaxItemsToProcess:
             Total_To_Process = All_records - starting_index
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
-        print (colored("Processing Batch %d     of     %d"%(Batch_Index,Total_Number_of_Batches)   ,'green'))
+        print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
         pool = ThreadPool(processes=MaxItemsToProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
@@ -441,8 +442,11 @@ def process_update():
         # write back progress
         
         WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
-        return
+        print (colored("Writing new Main Index.html File...",'green'))
+        WriteMainIndexHTML()
+        # return
         # UpdateLastSeqFile(itemBatch[-1]['seq']) # last item sequence number in batch
-         
+    WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True) # just make another backup once we finish
     print(colored('Done :)','cyan'))
+    #TODO: we still have to write the logic for getting updates :(
 
