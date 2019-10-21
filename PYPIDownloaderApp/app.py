@@ -255,7 +255,7 @@ def start(argv):
 
 
 def WriteTextFile(filename,data):
-    with open (filename,'w') as f:
+    with open (filename,'a+') as f:
         f.writelines(data)
 
 def SaveAdnAppendToErrorLog(data):
@@ -283,6 +283,9 @@ def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
     return re.sub(r"[-_.]+", "-", name).lower()
 
 # outputQueue = Queue(MaxItemsToProcess)
+def WriteFailedFile(filefail,txt):
+    with open(filefail, 'w') as f:
+        f.write(txt)
 
 
 def DownloadAndProcessesItemJob(key):
@@ -301,6 +304,7 @@ def DownloadAndProcessesItemJob(key):
         jsonfile = os.path.join(package_json_path,"index.json")
         indexfile = os.path.join(package_path,"index.html")
         serialfile = os.path.join(package_path,"__lastserial")
+        errorfile = os.path.join(package_path,"__errors")
         binariespath = os.path.join(package_path,"binaries")
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
@@ -310,7 +314,8 @@ def DownloadAndProcessesItemJob(key):
         try:
             jsonContent_raw = r.content
             jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
-        except:
+        except Exception as ex:
+            WriteFailedFile(errorfile,ex)
             return
         
         
@@ -356,8 +361,9 @@ def DownloadAndProcessesItemJob(key):
                     if not Failed:
                         downloaded_releases.append(package_file)   
                 except Exception as ex:
-                    ErrorLog = "File %s\n%s\n" % (key, ex)
-                    SaveAdnAppendToErrorLog(ErrorLog)
+                    WriteFailedFile(errorfile,ex)
+                    # ErrorLog = "File %s\n%s\n" % (key, ex)
+                    # SaveAdnAppendToErrorLog(ErrorLog)
                     continue
 
         # write the index.html file
@@ -391,8 +397,9 @@ def DownloadAndProcessesItemJob(key):
         # item['last_serial'] = last_serial
         return 
     except Exception as ex:
-        ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
-        SaveAdnAppendToErrorLog(ErrorLog)
+        WriteFailedFile(errorfile,ex)
+        # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
+        # SaveAdnAppendToErrorLog(ErrorLog)
         return 
 
 
