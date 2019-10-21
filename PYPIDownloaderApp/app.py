@@ -14,14 +14,15 @@ import urllib.parse
 import html as htmlescape # I don't want to get mixed up with below lxml
 from datetime import datetime
 # I'm using thead pool, because its easier and I can use global variables easily with it, We don't need high processing power for this project, just multi thread
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import Pool
+from multiprocessing import Queue
 from lxml import html# pip install lxml
 from termcolor import colored
 from zipfile import ZipFile 
-from distutils.version import StrictVersion
+from pkg_resources import parse_version
 import tqdm  # pip3 install tqdm
 import re
-
+ 
 MaxItemsToProcess = 30
 MaxNumberOfDownloadRetries = 2
 SkipDownloadingListFile=True
@@ -252,7 +253,6 @@ def start(argv):
     return
     # installRequired.CheckRequiredModuels(required_modules)
 
-CatalogJsonFilesToProcess = []
 
 def WriteTextFile(filename,data):
     with open (filename,'w') as f:
@@ -267,8 +267,13 @@ def SaveAdnAppendToErrorLog(data):
         print (ex)
 
 
+ProcessPools = []
+
 def signal_handler(sig, frame):
     print('\nYou pressed Ctrl+C!')
+    print('\nTerminating All Processes')
+    for p in ProcessPools:
+        p.termincate()
     sys.exit(0)
 
 
@@ -277,10 +282,11 @@ signal.signal(signal.SIGINT, signal_handler)
 def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
     return re.sub(r"[-_.]+", "-", name).lower()
 
+# outputQueue = Queue(MaxItemsToProcess)
+
 
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
-    item=GLOBAL_JSON_DATA[key]
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
@@ -307,30 +313,27 @@ def DownloadAndProcessesItemJob(key):
         index_html_string = str(INDEX_HTML_TEMPLATE)
         
         downloaded_releases = []
-        sorted_releases = sorted(releases)
-        if normalize_package_name=="numpy":
-            print ("AAAAAAAAAAA")
-            print (sorted_releases[-1])
-            print ("AAAAAAAAAAA")
-        # return
-        for r in releases:
+        sorted_releases = sorted(releases, key=parse_version)
+        for r in sorted_releases:
             for rr in releases[r]:
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests']}
                 numberOfTries = 0
                 Failed=True
                 try:
                     while numberOfTries<MaxNumberOfDownloadRetries:
-                        r= requests.get(package_file['url'])
-                        data = r.content
-                        # if all good, append it
                         file_path = os.path.join(binariespath,package_file['filename'])
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                        with open(file_path,'wb') as f:
-                            f.write(data)
-                        # verify hash
-                        sha256=GetSHA256(file_path)
-                        
+                        Download=True
+                        sha256=None
+                        if os.path.exists(file_path): #if exists, check its sha256, maybe we don't need to redownload it
+                            sha256=GetSHA256(file_path)
+                            if sha256==package_file['digests']['sha256']:
+                                Download=False
+                        if Download:
+                            r= requests.get(package_file['url'])
+                            data = r.content
+                            with open(file_path,'wb') as f:
+                                f.write(data)
+                            sha256=GetSHA256(file_path)
                         if sha256==package_file['digests']['sha256']:
                             # if it has signature, download it
                             if package_file['has_sig'] == True:
@@ -348,10 +351,9 @@ def DownloadAndProcessesItemJob(key):
                     ErrorLog = "File %s\n%s\n" % (key, ex)
                     SaveAdnAppendToErrorLog(ErrorLog)
                     continue
+
         # write the index.html file
         links_html_string = ""
-        
-         
         for d in downloaded_releases:
             extras = ""
             href_copy = str(INDEX_HTML_LINKS_TEMPLATE)
@@ -378,11 +380,12 @@ def DownloadAndProcessesItemJob(key):
             os.remove(serialfile)
         with open(serialfile,'w') as f:
             f.write(str.format("%d"%last_serial))
-        item['last_serial'] = last_serial
+        # item['last_serial'] = last_serial
+        return 
     except Exception as ex:
         ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         SaveAdnAppendToErrorLog(ErrorLog)
-        return
+        return 
 
 
 def WriteMainIndexHTML():
@@ -408,7 +411,7 @@ def WriteMainIndexHTML():
 
 
 def process_update():
-    global GLOBAL_JSON_DATA
+    global GLOBAL_JSON_DATA,ProcessPools
     print (colored("Checking Initial Download for packages, at this stage we are NOT updating downloaded packages"),'cyan')
     # in this stage, we will just check if we have the json file for ever package in the list
     # if we don't have the json file, we will append the package to the list of ToProcess
@@ -439,20 +442,31 @@ def process_update():
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
         print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
-        pool = ThreadPool(processes=MaxItemsToProcess)
+        ProcessPools = Pool(processes=MaxItemsToProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-        list(tqdm.tqdm(pool.imap(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+        list(tqdm.tqdm(ProcessPools.imap_unordered(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
 
-        pool.close()
-        pool.join()
+        ProcessPools.close()
+        ProcessPools.join()
+
         starting_index += Total_To_Process
         Batch_Index += 1
         # write back progress
         
+        # check each package __lastserial file
+        for p in itemBatch:
+            normalize_package_name = normalize(p)
+            package_path = os.path.join(packages_data_path,normalize_package_name)
+            serialfile = os.path.join(package_path,"__lastserial")
+            if os.path.exists(serialfile):
+                with open(serialfile,'r') as f:
+                    GLOBAL_JSON_DATA[p]['last_serial'] = int(f.read(),10)
+            else:
+                GLOBAL_JSON_DATA[p]['last_serial'] = None
         WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
         print (colored("Writing new Main Index.html File...",'green'))
         WriteMainIndexHTML()
-        # return
+        
         # UpdateLastSeqFile(itemBatch[-1]['seq']) # last item sequence number in batch
     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True) # just make another backup once we finish
     print(colored('Done :)','cyan'))
