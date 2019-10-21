@@ -283,10 +283,13 @@ def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
     return re.sub(r"[-_.]+", "-", name).lower()
 
 # outputQueue = Queue(MaxItemsToProcess)
-def WriteFailedFile(filefail,txt):
-    with open(filefail, 'w') as f:
-        f.write(str(txt))
-
+def WriteFailedFile(filefail,txt,overwrite=False):
+    if overwrite:
+        with open(filefail, 'w') as f:
+            f.write(str(txt))
+    else: # append
+        with open(filefail, 'a+') as f:
+            f.write(str(txt))
 
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
@@ -315,7 +318,7 @@ def DownloadAndProcessesItemJob(key):
             jsonContent_raw = r.content
             jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
         except Exception as ex:
-            WriteFailedFile(errorfile,ex)
+            WriteFailedFile(errorfile,str.format("Error in getting json: %s" %(ex)),overwrite=True)
             return
         
         
@@ -361,7 +364,7 @@ def DownloadAndProcessesItemJob(key):
                     if not Failed:
                         downloaded_releases.append(package_file)   
                 except Exception as ex:
-                    WriteFailedFile(errorfile,ex)
+                    WriteFailedFile(errorfile,str.format("Error in Downlading: %s" %(ex)),overwrite=False)
                     # ErrorLog = "File %s\n%s\n" % (key, ex)
                     # SaveAdnAppendToErrorLog(ErrorLog)
                     continue
@@ -397,7 +400,7 @@ def DownloadAndProcessesItemJob(key):
         # item['last_serial'] = last_serial
         return 
     except Exception as ex:
-        WriteFailedFile(errorfile,ex)
+        WriteFailedFile(errorfile,str.format("Other Errors: %s" %(ex)),overwrite=False)
         # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
         return 
