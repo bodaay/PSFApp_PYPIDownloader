@@ -26,7 +26,7 @@ import re
 MaxItemsToProcess = 30
 MaxNumberOfDownloadRetries = 2
 SkipDownloadingListFile=True
-ROOT_FOLDER_NAME = "d:/PYPI/"
+ROOT_FOLDER_NAME = "/Synology/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
 JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
 
