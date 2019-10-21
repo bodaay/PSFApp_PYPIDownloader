@@ -304,8 +304,16 @@ def DownloadAndProcessesItemJob(key):
         binariespath = os.path.join(package_path,"binaries")
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
-        jsonContent_raw = r.content
-        jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
+
+        #if below fails, no need to go any further, just return
+        jsonObj=None
+        try:
+            jsonContent_raw = r.content
+            jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
+        except:
+            return
+        
+        
         with open(jsonfile,'wb') as f:
             f.write(bytes(json.dumps(jsonObj,indent=2),'utf-8'))
         last_serial = jsonObj['last_serial']
