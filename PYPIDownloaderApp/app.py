@@ -308,10 +308,16 @@ def DownloadAndProcessesItemJob(key):
         indexfile = os.path.join(package_path,"index.html")
         serialfile = os.path.join(package_path,"__lastserial")
         errorfile = os.path.join(package_path,"__errors")
+        genericErrorfile = os.path.join(package_path,"__generic_error")
         binariespath = os.path.join(package_path,"binaries")
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
-
+        # if there was an exists error file, delete it
+        if os.path.exists(errorfile):
+            os.remove(errorfile)
+        # if there wasgeneric error file, delete it
+        if os.path.exists(genericErrorfile):
+            os.remove(genericErrorfile)
         #if below fails, no need to go any further, just return
         jsonObj=None
         try:
@@ -398,9 +404,10 @@ def DownloadAndProcessesItemJob(key):
         with open(serialfile,'w') as f:
             f.write(str.format("%d"%last_serial))
         # item['last_serial'] = last_serial
+        
         return 
     except Exception as ex:
-        WriteFailedFile(errorfile,str.format("Other Errors: %s" %(ex)),overwrite=False)
+        WriteFailedFile(genericErrorfile,str.format("Other Errors: %s" %(ex)),overwrite=True) # here an error can occur because of ctrl+c press, thats why I'm saving this into new file
         # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
         return 
