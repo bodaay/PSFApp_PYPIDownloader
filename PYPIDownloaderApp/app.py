@@ -285,7 +285,7 @@ def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
 # outputQueue = Queue(MaxItemsToProcess)
 def WriteFailedFile(filefail,txt):
     with open(filefail, 'w') as f:
-        f.write(txt)
+        f.write(str(txt))
 
 
 def DownloadAndProcessesItemJob(key):
