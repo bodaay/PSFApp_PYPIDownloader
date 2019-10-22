@@ -293,6 +293,15 @@ def WriteFailedFile(filefail,txt,overwrite=False):
 
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
+    r = requests.get(JSON_Info_Link_Prefix + normalize_package_name + "/json/",timeout=10)
+    package_path = os.path.join(packages_data_path,normalize_package_name)
+    package_json_path = os.path.join(package_path,"json")
+    jsonfile = os.path.join(package_json_path,"index.json")
+    indexfile = os.path.join(package_path,"index.html")
+    serialfile = os.path.join(package_path,"__lastserial")
+    errorfile = os.path.join(package_path,"__errors")
+    genericErrorfile = os.path.join(package_path,"__generic_error")
+    binariespath = os.path.join(package_path,"binaries")
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
@@ -301,15 +310,8 @@ def DownloadAndProcessesItemJob(key):
     # save __lastserial as text file withn package folder
     # Get the json file
     try:
-        r = requests.get(JSON_Info_Link_Prefix + normalize_package_name + "/json/",timeout=10)
-        package_path = os.path.join(packages_data_path,normalize_package_name)
-        package_json_path = os.path.join(package_path,"json")
-        jsonfile = os.path.join(package_json_path,"index.json")
-        indexfile = os.path.join(package_path,"index.html")
-        serialfile = os.path.join(package_path,"__lastserial")
-        errorfile = os.path.join(package_path,"__errors")
-        genericErrorfile = os.path.join(package_path,"__generic_error")
-        binariespath = os.path.join(package_path,"binaries")
+        
+        
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
         # if there was an exists error file, delete it
