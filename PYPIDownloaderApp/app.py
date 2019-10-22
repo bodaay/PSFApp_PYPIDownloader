@@ -501,7 +501,7 @@ def process_update():
                 GLOBAL_JSON_DATA[p]['last_serial'] = None
 
         if BatchBackupCounter > BackupProgeressAfterBatches:
-            print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter,'purple_1b'))
+            print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter, 'magneta'))
             BatchBackupCounter = 0 # reset the counter
             WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
         else:
