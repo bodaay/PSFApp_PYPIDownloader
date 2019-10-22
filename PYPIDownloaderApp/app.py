@@ -159,7 +159,7 @@ def WriteProgressJSON(jsondata,saveBackup=True):
         if os.path.exists(JSON_progress_data_file):
             shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
     with open(JSON_progress_data_file,'wb') as f:
-        f.write(bytes(json.dumps(jsondata,sort_keys=True),'utf-8'))
+        f.write(bytes(json.dumps(jsondata,indent=2,sort_keys=True),'utf-8'))
 
 GLOBAL_JSON_DATA = {}
 
