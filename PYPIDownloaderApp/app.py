@@ -23,7 +23,7 @@ from pkg_resources import parse_version
 import tqdm  # pip3 install tqdm
 import re
  
-MaxItemsToProcess = 30
+MaxItemsToProcess = 50
 MaxNumberOfDownloadRetries = 2
 SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
