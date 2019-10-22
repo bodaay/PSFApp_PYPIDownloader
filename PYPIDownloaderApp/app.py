@@ -454,7 +454,7 @@ def process_update():
     To_Initial_Process_Sorted.sort()
     with open ("temp.sorted",'w') as f:
         for i in To_Initial_Process_Sorted:
-            f.write(str(i))
+            f.write(str(i) + "\n")
     # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
     # starting_index = To_Initial_Process_Sorted.index("numpy") # a very easy and nice way to test out single package download
