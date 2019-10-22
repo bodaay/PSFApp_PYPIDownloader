@@ -23,7 +23,7 @@ from pkg_resources import parse_version
 import tqdm  # pip3 install tqdm
 import re
  
-MaxItemsToProcess = 50
+MaxItemsToProcess = 30
 MaxNumberOfDownloadRetries = 2
 SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
@@ -452,9 +452,9 @@ def process_update():
         else:
             TotalProcessed += 1
     To_Initial_Process_Sorted.sort()
-    with open ("temp.sorted",'w') as f:
-        for i in To_Initial_Process_Sorted:
-            f.write(str(i) + "\n")
+    # with open ("temp.sorted",'w') as f:
+    #     for i in To_Initial_Process_Sorted:
+    #         f.write(str(i) + "\n")
     # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
     # starting_index = To_Initial_Process_Sorted.index("numpy") # a very easy and nice way to test out single package download
@@ -471,6 +471,12 @@ def process_update():
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
         print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
+        packagesProcessString= "["
+        for i in itemBatch:
+            packagesProcessString += i + ","
+        packagesProcessString = packagesProcessString[:-1]
+        packagesProcessString += "]"
+        print (colored(packagesProcessString,'blue'))
         ProcessPools = Pool(processes=MaxItemsToProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
         list(tqdm.tqdm(ProcessPools.imap_unordered(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
