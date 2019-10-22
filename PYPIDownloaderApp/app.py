@@ -25,6 +25,7 @@ import re
  
 MaxItemsToProcess = 50
 MaxNumberOfDownloadRetries = 2
+BackupProgeressAfterBatches = 5
 SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
@@ -463,7 +464,7 @@ def process_update():
     All_records=len(To_Initial_Process_Sorted)
     Total_Number_of_Batches = math.ceil(All_records/MaxItemsToProcess)
     print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,MaxItemsToProcess),'cyan'))
-    
+    BatchBackupCounter = 0
     while starting_index < All_records:
         Total_To_Process = MaxItemsToProcess
         if All_records - starting_index < MaxItemsToProcess:
@@ -487,7 +488,7 @@ def process_update():
         starting_index += Total_To_Process
         Batch_Index += 1
         # write back progress
-        
+        BatchBackupCounter += 1
         # check each package __lastserial file
         for p in itemBatch:
             normalize_package_name = normalize(p)
@@ -498,7 +499,13 @@ def process_update():
                     GLOBAL_JSON_DATA[p]['last_serial'] = int(f.read(),10)
             else:
                 GLOBAL_JSON_DATA[p]['last_serial'] = None
-        WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
+
+        if BatchBackupCounter > BackupProgeressAfterBatches:
+            print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter))
+            BatchBackupCounter = 0 # reset the counter
+            WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+        else:
+            WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
         print (colored("Writing new Main Index.html File...",'green'))
         WriteMainIndexHTML()
         
