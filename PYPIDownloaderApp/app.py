@@ -23,7 +23,8 @@ from pkg_resources import parse_version
 import tqdm  # pip3 install tqdm
 import re
  
-MaxItemsToProcess = 50
+BatchSize = 30
+MaxDownloadProcess = 50
 MaxNumberOfDownloadRetries = 2
 BackupProgeressAfterBatches = 5
 SkipDownloadingListFile=True
@@ -381,16 +382,18 @@ def DownloadAndProcessesItemJob(key):
             for rr in releases[r]:
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests'],"downloadPath":binariespath}
                 packages_to_download.append(package_file)
-        DownloadPool = Pool(processes=MaxItemsToProcess)
+        DownloadPool = Pool(processes=MaxDownloadProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
         results = DownloadPool.imap(DownloadPackage,packages_to_download)
         DownloadPool.close()
         DownloadPool.join()
         for r in results:
             returnvalue,errorvalue,pfile=r
-            print (pfile)
-        # print (results)
-        exit(1)
+            if returnvalue == False:
+                WriteFailedFile(errorfile,str.format("Error in Downlading: %s" %(errorvalue)),overwrite=False)
+            else:
+                downloaded_releases.append(pfile)
+            
 
         # write the index.html file
         links_html_string = ""
@@ -475,12 +478,12 @@ def process_update():
     starting_index = 0 
     Batch_Index = 0
     All_records=len(To_Initial_Process_Sorted)
-    Total_Number_of_Batches = math.ceil(All_records/MaxItemsToProcess)
-    print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,MaxItemsToProcess),'cyan'))
+    Total_Number_of_Batches = math.ceil(All_records/BatchSize)
+    print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,BatchSize),'cyan'))
     BatchBackupCounter = 0
     while starting_index < All_records:
-        Total_To_Process = MaxItemsToProcess
-        if All_records - starting_index < MaxItemsToProcess:
+        Total_To_Process = BatchSize
+        if All_records - starting_index < BatchSize:
             Total_To_Process = All_records - starting_index
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
         print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
@@ -491,7 +494,9 @@ def process_update():
         packagesProcessString = packagesProcessString[:-1]
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
-        # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
+        
+
+        # we are processing package by package, each package will get multiple processes for downloading
         list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
 
      
