@@ -492,9 +492,9 @@ def process_update():
         printIndex = 0
         packagesProcessString= "["
         for i in itemBatch:
-            packagesProcessString += str(printIndex) + " - " + i + ","
+            packagesProcessString += str(printIndex) + "-" + i + ", "
             printIndex += 1
-        packagesProcessString = packagesProcessString[:-1]
+        packagesProcessString = packagesProcessString[:-2]
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
         
