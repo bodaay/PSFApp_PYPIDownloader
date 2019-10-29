@@ -386,7 +386,9 @@ def DownloadAndProcessesItemJob(key):
         results = DownloadPool.imap(DownloadPackage,packages_to_download)
         DownloadPool.close()
         DownloadPool.join()
-        print (results)
+        for r in results:
+            print (r)
+        # print (results)
         exit(1)
 
         # write the index.html file
