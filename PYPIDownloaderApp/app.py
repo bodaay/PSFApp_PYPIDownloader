@@ -432,7 +432,7 @@ def WriteMainIndexHTML():
     links = ""
     extras = ""
     for p in GLOBAL_JSON_DATA:
-        if GLOBAL_JSON_DATA[p]["last_serial"] is None or GLOBAL_JSON_DATA[p]["last_serial"]=0: # ignore not finished, or failed
+        if GLOBAL_JSON_DATA[p]["last_serial"] is None or GLOBAL_JSON_DATA[p]["last_serial"]==0: # ignore not finished, or failed
             continue
         normalized = normalize(p)
         href_copy = str(INDEX_HTML_LINKS_TEMPLATE)
