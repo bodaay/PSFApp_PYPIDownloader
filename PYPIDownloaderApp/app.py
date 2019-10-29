@@ -420,6 +420,7 @@ def DownloadAndProcessesItemJob(key):
         # item['last_serial'] = last_serial
         
     except Exception as ex:
+        print (ex)
         WriteFailedFile(genericErrorfile,str.format("Other Errors: %s" %(ex)),overwrite=True) # here an error can occur because of ctrl+c press, thats why I'm saving this into new file
         # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
