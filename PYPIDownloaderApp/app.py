@@ -489,9 +489,11 @@ def process_update():
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
         print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
+        printIndex = 0
         packagesProcessString= "["
         for i in itemBatch:
-            packagesProcessString += i + ","
+            packagesProcessString += str(printIndex) + " - " + i + ","
+            printIndex += 1
         packagesProcessString = packagesProcessString[:-1]
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
