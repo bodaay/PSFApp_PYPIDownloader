@@ -16,7 +16,6 @@ from datetime import datetime
 # I'm using thead pool, because its easier and I can use global variables easily with it, We don't need high processing power for this project, just multi thread
 from multiprocessing.pool import Pool
 from multiprocessing import Queue
-from multiprocessing import Lock
 from lxml import html# pip install lxml
 from termcolor import colored
 from zipfile import ZipFile 
@@ -26,6 +25,7 @@ import re
  
 MaxItemsToProcess = 50
 MaxNumberOfDownloadRetries = 2
+BackupProgeressAfterBatches = 5
 SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
@@ -160,7 +160,7 @@ def WriteProgressJSON(jsondata,saveBackup=True):
         if os.path.exists(JSON_progress_data_file):
             shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
     with open(JSON_progress_data_file,'wb') as f:
-        f.write(bytes(json.dumps(jsondata,sort_keys=True),'utf-8'))
+        f.write(bytes(json.dumps(jsondata,indent=2,sort_keys=True),'utf-8'))
 
 GLOBAL_JSON_DATA = {}
 
@@ -280,8 +280,6 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-
-
 def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -335,6 +333,7 @@ def DownloadPackage(package_file):
     return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
+    lock.acquire()
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
@@ -385,7 +384,7 @@ def DownloadAndProcessesItemJob(key):
                 packages_to_download.append(package_file)
         DownloadPool = Pool(processes=MaxItemsToProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-        results = DownloadPool.imap(DownloadAndProcessesItemJob,packages_to_download)
+        results = DownloadPool.imap(DownloadPackage,packages_to_download)
         DownloadPool.close()
         DownloadPool.join()
         print (results)
@@ -428,7 +427,6 @@ def DownloadAndProcessesItemJob(key):
         
     return
 
-
 def WriteMainIndexHTML():
     mainIndexFile = os.path.join(packages_data_path,"index.html")
     htmlData = str(MAIN_INDEX_HTML_TEMPLATE)
@@ -466,7 +464,9 @@ def process_update():
         else:
             TotalProcessed += 1
     To_Initial_Process_Sorted.sort()
-
+    # with open ("temp.sorted",'w') as f:
+    #     for i in To_Initial_Process_Sorted:
+    #         f.write(str(i) + "\n")
     # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
     # starting_index = To_Initial_Process_Sorted.index("numpy") # a very easy and nice way to test out single package download
@@ -475,7 +475,7 @@ def process_update():
     All_records=len(To_Initial_Process_Sorted)
     Total_Number_of_Batches = math.ceil(All_records/MaxItemsToProcess)
     print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,MaxItemsToProcess),'cyan'))
-    
+    BatchBackupCounter = 0
     while starting_index < All_records:
         Total_To_Process = MaxItemsToProcess
         if All_records - starting_index < MaxItemsToProcess:
@@ -483,14 +483,21 @@ def process_update():
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
         print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
+        packagesProcessString= "["
+        for i in itemBatch:
+            packagesProcessString += i + ","
+        packagesProcessString = packagesProcessString[:-1]
+        packagesProcessString += "]"
+        print (colored(packagesProcessString,'blue'))
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-        list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch),total = MaxItemsToProcess, ))
-        
+        list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+
+     
 
         starting_index += Total_To_Process
         Batch_Index += 1
         # write back progress
-        
+        BatchBackupCounter += 1
         # check each package __lastserial file
         for p in itemBatch:
             normalize_package_name = normalize(p)
@@ -501,7 +508,13 @@ def process_update():
                     GLOBAL_JSON_DATA[p]['last_serial'] = int(f.read(),10)
             else:
                 GLOBAL_JSON_DATA[p]['last_serial'] = None
-        WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
+
+        if BatchBackupCounter > BackupProgeressAfterBatches:
+            print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter, 'magenta'))
+            BatchBackupCounter = 0 # reset the counter
+            WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+        else:
+            WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
         print (colored("Writing new Main Index.html File...",'green'))
         WriteMainIndexHTML()
         
@@ -509,4 +522,3 @@ def process_update():
     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True) # just make another backup once we finish
     print(colored('Done :)','cyan'))
     #TODO: we still have to write the logic for getting updates :(
-
