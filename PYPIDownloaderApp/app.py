@@ -24,7 +24,7 @@ from pkg_resources import parse_version
 import tqdm  # pip3 install tqdm
 import re
  
-MaxItemsToProcess = 30
+MaxItemsToProcess = 50
 MaxNumberOfDownloadRetries = 2
 SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
@@ -392,6 +392,7 @@ def DownloadAndProcessesItemJob(key):
         DownloadPool.close()
         DownloadPool.join()
         print (results)
+        lock.release()
         return
 
         # write the index.html file
