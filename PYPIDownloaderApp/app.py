@@ -387,7 +387,8 @@ def DownloadAndProcessesItemJob(key):
         DownloadPool.close()
         DownloadPool.join()
         for r in results:
-            print (r)
+            returnvalue,errorvalue,pfile=r
+            print (pfile)
         # print (results)
         exit(1)
 
