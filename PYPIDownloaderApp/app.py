@@ -382,10 +382,10 @@ def DownloadAndProcessesItemJob(key):
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests'],"downloadPath":binariespath}
                 packages_to_download.append(package_file)
         DownloadPool = Pool(processes=MaxItemsToProcess)
-        # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
         results = DownloadPool.imap(DownloadPackage,packages_to_download)
         DownloadPool.close()
         DownloadPool.join()
+        print ("asdfsdfds")
         print (results)
         return
 
