@@ -16,6 +16,7 @@ from datetime import datetime
 # I'm using thead pool, because its easier and I can use global variables easily with it, We don't need high processing power for this project, just multi thread
 from multiprocessing.pool import Pool
 from multiprocessing import Queue
+from multiprocessing import Lock
 from lxml import html# pip install lxml
 from termcolor import colored
 from zipfile import ZipFile 
@@ -279,6 +280,9 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
+lock = Lock()
+
+
 def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -291,8 +295,48 @@ def WriteFailedFile(filefail,txt,overwrite=False):
         with open(filefail, 'a+') as f:
             f.write(str(txt))
 
+
+def DownloadPackage(package_file):
+    numberOfTries = 0
+    Failed=True
+    Error=None
+    try:
+        while numberOfTries<MaxNumberOfDownloadRetries:
+            file_path = os.path.join(package_file['downloadPath'],package_file['filename'])
+            Download=True
+            sha256=None
+            if os.path.exists(file_path): #if exists, check its sha256, maybe we don't need to redownload it
+                sha256=GetSHA256(file_path)
+                if sha256==package_file['digests']['sha256']:
+                    Download=False
+            if Download:
+                r= requests.get(package_file['url'])
+                data = r.content
+                with open(file_path,'wb') as f:
+                    f.write(data)
+                sha256=GetSHA256(file_path)
+            if sha256==package_file['digests']['sha256']:
+                # if it has signature, download it
+                if package_file['has_sig'] == True:
+                    r=requests.get(package_file['url'] + ".asc")
+                    with open (file_path + ".asc",'wb') as f:
+                        f.write(r.content)
+                Failed=False
+                break
+            numberOfTries += 1
+        # if download is successfull, append this to downloaded_releases
+        # if not Failed:
+        #     downloaded_releases.append(package_file)   
+    except Exception as ex:
+        Error = str.format("Error in Downlading: %s" %(ex))
+        # ErrorLog = "File %s\n%s\n" % (key, ex)
+        # SaveAdnAppendToErrorLog(ErrorLog)
+        Failed = False
+
+    return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
+    lock.acquire()
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
@@ -325,6 +369,7 @@ def DownloadAndProcessesItemJob(key):
             jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
         except Exception as ex:
             WriteFailedFile(errorfile,str.format("Error in getting json: %s" %(ex)),overwrite=True)
+            lock.release()
             return
         
         
@@ -336,44 +381,18 @@ def DownloadAndProcessesItemJob(key):
         
         downloaded_releases = []
         sorted_releases = sorted(releases, key=parse_version)
+        packages_to_download = []
         for r in sorted_releases:
             for rr in releases[r]:
-                package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests']}
-                numberOfTries = 0
-                Failed=True
-                try:
-                    while numberOfTries<MaxNumberOfDownloadRetries:
-                        file_path = os.path.join(binariespath,package_file['filename'])
-                        Download=True
-                        sha256=None
-                        if os.path.exists(file_path): #if exists, check its sha256, maybe we don't need to redownload it
-                            sha256=GetSHA256(file_path)
-                            if sha256==package_file['digests']['sha256']:
-                                Download=False
-                        if Download:
-                            r= requests.get(package_file['url'])
-                            data = r.content
-                            with open(file_path,'wb') as f:
-                                f.write(data)
-                            sha256=GetSHA256(file_path)
-                        if sha256==package_file['digests']['sha256']:
-                            # if it has signature, download it
-                            if package_file['has_sig'] == True:
-                                r=requests.get(package_file['url'] + ".asc")
-                                with open (file_path + ".asc",'wb') as f:
-                                    f.write(r.content)
-                            Failed=False
-                            break
-                        numberOfTries += 1
-                       
-                    # if download is successfull, append this to downloaded_releases
-                    if not Failed:
-                        downloaded_releases.append(package_file)   
-                except Exception as ex:
-                    WriteFailedFile(errorfile,str.format("Error in Downlading: %s" %(ex)),overwrite=False)
-                    # ErrorLog = "File %s\n%s\n" % (key, ex)
-                    # SaveAdnAppendToErrorLog(ErrorLog)
-                    continue
+                package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests'],"downloadPath":binariespath}
+                packages_to_download.append(package_file)
+        DownloadPool = Pool(processes=MaxItemsToProcess)
+        # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
+        results = DownloadPool.imap(DownloadAndProcessesItemJob,packages_to_download)
+        DownloadPool.close()
+        DownloadPool.join()
+        print (results)
+        return
 
         # write the index.html file
         links_html_string = ""
@@ -405,12 +424,14 @@ def DownloadAndProcessesItemJob(key):
             f.write(str.format("%d"%last_serial))
         # item['last_serial'] = last_serial
         
-        return 
     except Exception as ex:
         WriteFailedFile(genericErrorfile,str.format("Other Errors: %s" %(ex)),overwrite=True) # here an error can occur because of ctrl+c press, thats why I'm saving this into new file
         # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
-        return 
+        
+    finally:
+        lock.release()
+        return
 
 
 def WriteMainIndexHTML():
@@ -469,7 +490,7 @@ def process_update():
         itemBatch = To_Initial_Process_Sorted[starting_index:starting_index+Total_To_Process]
         ProcessPools = Pool(processes=MaxItemsToProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-        list(tqdm.tqdm(ProcessPools.imap_unordered(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+        list(tqdm.tqdm(ProcessPools.imap(DownloadAndProcessesItemJob,itemBatch),total = MaxItemsToProcess, ))
 
         ProcessPools.close()
         ProcessPools.join()
