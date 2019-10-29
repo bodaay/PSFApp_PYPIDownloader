@@ -382,10 +382,10 @@ def DownloadAndProcessesItemJob(key):
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests'],"downloadPath":binariespath}
                 packages_to_download.append(package_file)
         DownloadPool = Pool(processes=MaxItemsToProcess)
+        # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
         results = DownloadPool.imap(DownloadPackage,packages_to_download)
         DownloadPool.close()
         DownloadPool.join()
-        print ("asdfsdfds")
         print (results)
         return
 
@@ -420,7 +420,6 @@ def DownloadAndProcessesItemJob(key):
         # item['last_serial'] = last_serial
         
     except Exception as ex:
-        print (ex)
         WriteFailedFile(genericErrorfile,str.format("Other Errors: %s" %(ex)),overwrite=True) # here an error can occur because of ctrl+c press, thats why I'm saving this into new file
         # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
@@ -490,8 +489,8 @@ def process_update():
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-        for i in itemBatch:
-            DownloadAndProcessesItemJob(i)
+        list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+
      
 
         starting_index += Total_To_Process
@@ -507,7 +506,7 @@ def process_update():
                 with open(serialfile,'r') as f:
                     GLOBAL_JSON_DATA[p]['last_serial'] = int(f.read(),10)
             else:
-                GLOBAL_JSON_DATA[p]['last_serial'] = None
+                GLOBAL_JSON_DATA[p]['last_serial'] = 0
 
         if BatchBackupCounter > BackupProgeressAfterBatches:
             print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter, 'magenta'))
