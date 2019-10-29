@@ -333,7 +333,6 @@ def DownloadPackage(package_file):
     return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
-    lock.acquire()
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
