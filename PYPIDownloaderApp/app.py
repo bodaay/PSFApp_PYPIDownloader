@@ -325,11 +325,12 @@ def DownloadPackage(package_file):
         # if download is successfull, append this to downloaded_releases
         # if not Failed:
         #     downloaded_releases.append(package_file)   
+        
     except Exception as ex:
         Error = str.format("Error in Downlading: %s" %(ex))
         # ErrorLog = "File %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
-        Failed = False
+        Failed = True
 
     return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
@@ -388,8 +389,8 @@ def DownloadAndProcessesItemJob(key):
         DownloadPool.close()
         DownloadPool.join()
         for r in results:
-            returnvalue,errorvalue,pfile=r
-            if returnvalue == False:
+            failed,errorvalue,pfile=r
+            if failed:
                 WriteFailedFile(errorfile,str.format("Error in Downlading: %s" %(errorvalue)),overwrite=False)
             else:
                 downloaded_releases.append(pfile)
