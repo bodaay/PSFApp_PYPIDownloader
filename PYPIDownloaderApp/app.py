@@ -489,7 +489,7 @@ def process_update():
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
-        list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+        map(DownloadAndProcessesItemJob,itemBatch)
 
      
 
