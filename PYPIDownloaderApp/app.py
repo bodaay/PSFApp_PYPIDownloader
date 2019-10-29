@@ -280,7 +280,6 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-lock = Lock()
 
 
 def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
@@ -336,7 +335,6 @@ def DownloadPackage(package_file):
     return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
     normalize_package_name = normalize(key)
-    lock.acquire()
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
     # 2- Download all files into required folder
@@ -369,7 +367,6 @@ def DownloadAndProcessesItemJob(key):
             jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
         except Exception as ex:
             WriteFailedFile(errorfile,str.format("Error in getting json: %s" %(ex)),overwrite=True)
-            lock.release()
             return
         
         
@@ -392,7 +389,6 @@ def DownloadAndProcessesItemJob(key):
         DownloadPool.close()
         DownloadPool.join()
         print (results)
-        lock.release()
         return
 
         # write the index.html file
@@ -430,9 +426,7 @@ def DownloadAndProcessesItemJob(key):
         # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
         # SaveAdnAppendToErrorLog(ErrorLog)
         
-    finally:
-        lock.release()
-        return
+    return
 
 
 def WriteMainIndexHTML():
