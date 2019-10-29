@@ -387,7 +387,7 @@ def DownloadAndProcessesItemJob(key):
         DownloadPool.close()
         DownloadPool.join()
         print (results)
-        return
+        exit(1)
 
         # write the index.html file
         links_html_string = ""
