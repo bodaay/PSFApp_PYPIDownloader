@@ -160,9 +160,9 @@ def FilesMatching(file1, file2):
 def WriteProgressJSON(jsondata,saveBackup=True):
     if saveBackup:
         if os.path.exists(JSON_progress_data_file):
-            backupPath = os.path.join(working_path,"bakcup")
+            backupPath = os.path.join(working_path,"backup")
             os.makedirs(backupPath,exist_ok=True)
-            newFileName= os.path.join("__progress.json"+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
+            newFileName= os.path.join(backupPath,"__progress.json"+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
             shutil.copyfile(JSON_progress_data_file,newFileName)
     with open(JSON_progress_data_file,'wb') as f:
         f.write(bytes(json.dumps(jsondata,indent=2,sort_keys=True),'utf-8'))
