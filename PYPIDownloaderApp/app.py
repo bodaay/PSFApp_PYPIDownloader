@@ -166,7 +166,7 @@ def WriteProgressJSON(jsondata,saveBackup=True):
             shutil.copyfile(JSON_progress_data_file,newFileName)
     with open(JSON_progress_data_file,'wb') as f:
         f.write(bytes(json.dumps(jsondata,indent=2,sort_keys=True),'utf-8'))
-
+ 
 GLOBAL_JSON_DATA = {}
 
 def start(argv):
