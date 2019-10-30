@@ -159,7 +159,10 @@ def FilesMatching(file1, file2):
 def WriteProgressJSON(jsondata,saveBackup=True):
     if saveBackup:
         if os.path.exists(JSON_progress_data_file):
-            shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
+            backupPath = os.path.join(working_path,"bakcup")
+            os.makedirs(backupPath,exist_ok=True)
+            newFileName= os.path.join("__progress.json"+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
+            shutil.copyfile(JSON_progress_data_file,newFileName)
     with open(JSON_progress_data_file,'wb') as f:
         f.write(bytes(json.dumps(jsondata,indent=2,sort_keys=True),'utf-8'))
 
@@ -269,13 +272,13 @@ def SaveAdnAppendToErrorLog(data):
         print (ex)
 
 
-ProcessPools = []
+# ProcessPools = []
 
 def signal_handler(sig, frame):
     print('\nYou pressed Ctrl+C!')
-    print('\nTerminating All Processes')
-    for p in ProcessPools:
-        p.termincate()
+    # print('\nTerminating All Processes')
+    # for p in ProcessPools:
+    #     p.termincate()
     sys.exit(0)
 
 
@@ -386,6 +389,8 @@ def DownloadAndProcessesItemJob(key):
         DownloadPool = Pool(processes=MaxDownloadProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
         results = DownloadPool.imap(DownloadPackage,packages_to_download)
+        # add them to processpools
+
         DownloadPool.close()
         DownloadPool.join()
         for r in results:
