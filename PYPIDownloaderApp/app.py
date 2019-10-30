@@ -27,6 +27,7 @@ BatchSize = 30
 MaxDownloadProcess = 50
 MaxNumberOfDownloadRetries = 2
 BackupProgeressAfterBatches = 5
+DONWLOAD_CHUNK_SIZE_MB = 4
 SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
@@ -308,10 +309,16 @@ def DownloadPackage(package_file):
                 if sha256==package_file['digests']['sha256']:
                     Download=False
             if Download:
-                r= requests.get(package_file['url'])
-                data = r.content
-                with open(file_path,'wb') as f:
-                    f.write(data)
+                with requests.get(package_file['url'], stream=True,timeout=10) as r:
+                    r.raise_for_status()
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=DONWLOAD_CHUNK_SIZE_MB * 1024): 
+                            if chunk: # filter out keep-alive new chunks
+                                f.write(chunk)
+                # r= requests.get(package_file['url'])
+                # data = r.content
+                # with open(file_path,'wb') as f:
+                #     f.write(data)
                 sha256=GetSHA256(file_path)
             if sha256==package_file['digests']['sha256']:
                 # if it has signature, download it
