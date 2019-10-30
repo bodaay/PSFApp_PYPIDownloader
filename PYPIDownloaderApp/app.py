@@ -310,15 +310,9 @@ def DownloadPackage(package_file):
                     Download=False
             if Download:
                 with requests.get(package_file['url'], stream=True,timeout=10) as r:
-                    r.raise_for_status()
                     with open(file_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=DONWLOAD_CHUNK_SIZE_MB * 1024): 
-                            if chunk: # filter out keep-alive new chunks
-                                f.write(chunk)
-                # r= requests.get(package_file['url'])
-                # data = r.content
-                # with open(file_path,'wb') as f:
-                #     f.write(data)
+                        shutil.copyfileobj(r.raw, f,length=DONWLOAD_CHUNK_SIZE_MB * 1024 * 1024)
+
                 sha256=GetSHA256(file_path)
             if sha256==package_file['digests']['sha256']:
                 # if it has signature, download it
