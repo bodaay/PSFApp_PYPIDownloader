@@ -463,7 +463,7 @@ def WriteMainIndexHTML():
 
 def process_update():
     global GLOBAL_JSON_DATA,ProcessPools
-    print (colored("Checking Initial Download for packages, at this stage we are NOT updating downloaded packages"),'cyan')
+    print (colored("Checking Initial Download for packages, at this stage we are NOT updating downloaded packages",'cyan'))
     # in this stage, we will just check if we have the json file for ever package in the list
     # if we don't have the json file, we will append the package to the list of ToProcess
     
