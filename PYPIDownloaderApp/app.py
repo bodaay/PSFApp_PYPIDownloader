@@ -166,7 +166,10 @@ def WriteProgressJSON(jsondata,saveBackup=True):
             shutil.copyfile(JSON_progress_data_file,newFileName)
     with open(JSON_progress_data_file,'wb') as f:
         f.write(bytes(json.dumps(jsondata,indent=2,sort_keys=True),'utf-8'))
- 
+
+def timeStamped(fname, fmt='%Y-%m-%d-%H-%M-%S_{fname}'):
+    return datetime.now().strftime(fmt).format(fname=fname)
+
 GLOBAL_JSON_DATA = {}
 
 def start(argv):
@@ -254,7 +257,10 @@ def start(argv):
     # return
     process_update()
     # # delete index.temp.json
-
+    LastUpdateFile = os.path.join(working_path,timeStamped("_last_updated"))
+    print (colored("Writing last update file: %s"%LastUpdateFile,'red'))
+    with open(LastUpdateFile,"w") as f:
+        f.write(timeStamped(""))
     # os.remove(local_temp_file_name)
     return
     # installRequired.CheckRequiredModuels(required_modules)
