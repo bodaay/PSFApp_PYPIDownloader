@@ -274,10 +274,13 @@ def SaveAdnAppendToErrorLog(data):
 
 
 # ProcessPools = []
-
+DownloadPool = None
 def signal_handler(sig, frame):
+    global DownloadPool
+    if DownloadPool:
+        DownloadPool.terminate()
     print('\nYou pressed Ctrl+C!')
-    # print('\nTerminating All Processes')
+    print('\nTerminating All Processes')
     # for p in ProcessPools:
     #     p.termincate()
     sys.exit(0)
@@ -338,6 +341,7 @@ def DownloadPackage(package_file):
 
     return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
+    global DownloadPool
     normalize_package_name = normalize(key)
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
@@ -394,6 +398,7 @@ def DownloadAndProcessesItemJob(key):
 
         DownloadPool.close()
         DownloadPool.join()
+
         for r in results:
             failed,errorvalue,pfile=r
             if failed:
@@ -401,7 +406,7 @@ def DownloadAndProcessesItemJob(key):
             else:
                 downloaded_releases.append(pfile)
             
-
+        DownloadPool=None
         # write the index.html file
         links_html_string = ""
         for d in downloaded_releases:
