@@ -531,13 +531,13 @@ def CheckLastSerialHeader(item):
     newlasterial=None
     try:
         header = requests.head(MAIN_Packages_List_Link + normalize(item) + "/")
-        newlasterial=header.headers['X-PyPI-Last-Serial']
+        newlasterial=int(header.headers['X-PyPI-Last-Serial'],10)
         Failed=False
     except:
         pass
 
-    return Failed,item,int(newlasterial,10)
-
+    return Failed,item,newlasterial
+    
 def CheckForLastSerialUpdates():
     global GLOBAL_JSON_DATA
     print (colored("Fetching Last Serial for packages, will save progress after after every %d batches" % (BackupProgeressAfterBatches),'yellow') )
