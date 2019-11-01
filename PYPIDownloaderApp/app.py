@@ -594,6 +594,7 @@ def CheckForLastSerialUpdates():
                 packagesToUpdateString += normalize(p['name']) + ": " + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + "/" + colored(p['last_serial'],'green') + ", "
                 GLOBAL_JSON_DATA[item]['last_serial'] = -1 # set it to -1 so it will be process again in the main process_update function
         if len(packagesToUpdate) > 0:
+            print(colored("Total Marked for updates: %d" % len(packagesToUpdate),'yellow'))
             packagesToUpdateString = packagesToUpdateString[:-2]
             packagesToUpdateString += "]"
             print (colored("Packages To Update",'green'))
