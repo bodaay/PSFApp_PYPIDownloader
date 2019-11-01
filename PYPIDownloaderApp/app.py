@@ -536,7 +536,7 @@ def CheckLastSerialHeader(item):
     except:
         pass
 
-    return Failed,item,newlasterial
+    return Failed,item,int(newlasterial,10)
 
 def CheckForLastSerialUpdates():
     global GLOBAL_JSON_DATA
@@ -553,15 +553,16 @@ def CheckForLastSerialUpdates():
     print("Total Number of pacakges to check for updates: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
     starting_index = 0 
     Batch_Index = 0
+    CheckBatchSize = BatchSize * 4 # for checking, we will quadrple the batchsize
     All_records=len(To_Check_For_Updates)
-    Total_Number_of_Batches = math.ceil(All_records/BatchSize)
-    print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,BatchSize),'cyan'))
+    Total_Number_of_Batches = math.ceil(All_records/CheckBatchSize)
+    print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,CheckBatchSize),'cyan'))
     BatchBackupCounter = 0
-    MaxCheckProcess=MaxDownloadProcess
+    MaxCheckProcess=MaxDownloadProcess * 2 # for checking, we will double the connection numbers
     TotalpackagesToUpdate = 0
     while starting_index < All_records:
-        Total_To_Process = BatchSize
-        if All_records - starting_index < BatchSize:
+        Total_To_Process = CheckBatchSize
+        if All_records - starting_index < CheckBatchSize:
             Total_To_Process = All_records - starting_index
             print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
         print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
@@ -584,13 +585,15 @@ def CheckForLastSerialUpdates():
         for r in results:
             failed,item,newlastserial = r
             if not failed:
-                if not GLOBAL_JSON_DATA[item]['last_serial'] == int(newlastserial,10):
+                if not GLOBAL_JSON_DATA[item]['last_serial'] == newlastserial:
                     packagesToUpdate.append({"name": item,"last_serial":newlastserial})
                     #GLOBAL_JSON_DATA[item]['last_serial'] = -1 # we will change this package to -1, so it will be process again in the main process_update function
         if len(packagesToUpdate) > 0:
             packagesToUpdateString = "["
             for p in packagesToUpdate:
-                packagesToUpdateString += normalize(p['name']) + " old_serial: " + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + " new_serial: " + colored(p['last_serial'],'green') + ", "
+                packagesToUpdateString += normalize(p['name']) + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + "/" + colored(p['last_serial'],'green') + ", "
+                GLOBAL_JSON_DATA[item]['last_serial'] = -1 # set it to -1 so it will be process again in the main process_update function
+        if len(packagesToUpdate) > 0:
             packagesToUpdateString = packagesToUpdateString[:-2]
             packagesToUpdateString += "]"
             print (colored("Packages To Update",'green'))
@@ -602,12 +605,12 @@ def CheckForLastSerialUpdates():
         Batch_Index += 1
         # write back progress
         BatchBackupCounter += 1
-        # if BatchBackupCounter >= BackupProgeressAfterBatches:
-        #     print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter, 'magenta'))
-        #     BatchBackupCounter = 0 # reset the counter
-        #     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
-        # else:
-        #     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
+        if BatchBackupCounter >= BackupProgeressAfterBatches:
+            print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter, 'magenta'))
+            BatchBackupCounter = 0 # reset the counter
+            WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+        else:
+            WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
 
 def start(argv):
 
