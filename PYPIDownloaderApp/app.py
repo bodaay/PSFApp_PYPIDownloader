@@ -537,7 +537,7 @@ def CheckLastSerialHeader(item):
         pass
 
     return Failed,item,newlasterial
-    
+
 def CheckForLastSerialUpdates():
     global GLOBAL_JSON_DATA
     print (colored("Fetching Last Serial for packages, will save progress after after every %d batches" % (BackupProgeressAfterBatches),'yellow') )
@@ -591,7 +591,7 @@ def CheckForLastSerialUpdates():
         if len(packagesToUpdate) > 0:
             packagesToUpdateString = "["
             for p in packagesToUpdate:
-                packagesToUpdateString += normalize(p['name']) + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + "/" + colored(p['last_serial'],'green') + ", "
+                packagesToUpdateString += normalize(p['name']) + ": " + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + "/" + colored(p['last_serial'],'green') + ", "
                 GLOBAL_JSON_DATA[item]['last_serial'] = -1 # set it to -1 so it will be process again in the main process_update function
         if len(packagesToUpdate) > 0:
             packagesToUpdateString = packagesToUpdateString[:-2]
