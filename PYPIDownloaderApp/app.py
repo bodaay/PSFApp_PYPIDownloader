@@ -533,7 +533,7 @@ def CheckLastSerialHeader(item):
         header = requests.head(MAIN_Packages_List_Link + normalize(item))
         newlasterial=header.headers['X-PyPI-Last-Serial']
         Failed=False
-    except Exception as ex:
+    except:
         pass
 
     return Failed,item,newlasterial
@@ -558,6 +558,7 @@ def CheckForLastSerialUpdates():
     print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,BatchSize),'cyan'))
     BatchBackupCounter = 0
     MaxCheckProcess=MaxDownloadProcess
+    TotalpackagesToUpdate = 0
     while starting_index < All_records:
         Total_To_Process = BatchSize
         if All_records - starting_index < BatchSize:
@@ -578,18 +579,25 @@ def CheckForLastSerialUpdates():
         results = CheckPool.imap_unordered(CheckLastSerialHeader,itemBatch)
         CheckPool.close()
         CheckPool.join()
-        packagesToUpdateString = "["
+        packagesToUpdate = []
+        
         for r in results:
             failed,item,newlastserial = r
             if not failed:
                 if not GLOBAL_JSON_DATA[item]['last_serial'] == newlastserial:
-                    packagesToUpdateString += normalize(item) + ", "
+                    packagesToUpdate.append(item)
                     #GLOBAL_JSON_DATA[item]['last_serial'] = -1 # we will change this package to -1, so it will be process again in the main process_update function
-
-        packagesToUpdateString = packagesToUpdateString[:-2]
-        packagesToUpdateString += "]"
-        print (colored("Packages To Update",'green'))
-        print (colored(packagesToUpdateString,'green'))
+        if len(packagesToUpdate) > 0:
+            packagesToUpdateString = "["
+            for p in packagesToUpdate:
+                packagesToUpdateString += normalize(p) + ", "
+            packagesToUpdateString = packagesToUpdateString[:-2]
+            packagesToUpdateString += "]"
+            print (colored("Packages To Update",'green'))
+            print (colored(packagesToUpdateString,'green'))
+            TotalpackagesToUpdate += len(packagesToUpdate)
+        else:
+            print(colored("No packages marked for udpate, checking next batch...",'yellow'))
         starting_index += Total_To_Process
         Batch_Index += 1
         # write back progress
