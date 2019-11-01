@@ -14,7 +14,7 @@ import urllib.parse
 import html as htmlescape # I don't want to get mixed up with below lxml
 from datetime import datetime
 # I'm using thead pool, because its easier and I can use global variables easily with it, We don't need high processing power for this project, just multi thread
-from multiprocessing.pool import Pool
+from multiprocessing.pool import Pool,ThreadPool
 from multiprocessing import Queue
 from lxml import html# pip install lxml
 from termcolor import colored
@@ -28,7 +28,6 @@ MaxDownloadProcess = 50
 MaxNumberOfDownloadRetries = 2
 BackupProgeressAfterBatches = 5
 DONWLOAD_CHUNK_SIZE_MB = 4
-SkipDownloadingListFile=True
 ROOT_FOLDER_NAME = "/Synology/PYPI/"
 MAIN_Packages_List_Link = "https://pypi.org/simple/"
 JSON_Info_Link_Prefix = "https://pypi.org/pypi/"
@@ -471,11 +470,8 @@ def process_update():
         else:
             TotalProcessed += 1
     To_Initial_Process_Sorted.sort()
-    # with open ("temp.sorted",'w') as f:
-    #     for i in To_Initial_Process_Sorted:
-    #         f.write(str(i) + "\n")
-    # WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
-    print("Total Number of finished initial download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
+
+    print("Total Number of finished download pacakges: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
     # starting_index = To_Initial_Process_Sorted.index("numpy") # a very easy and nice way to test out single package download
     starting_index = 0 
     Batch_Index = 0
@@ -498,13 +494,9 @@ def process_update():
         packagesProcessString = packagesProcessString[:-2]
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
-        
-
+ 
         # we are processing package by package, each package will get multiple processes for downloading
         list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
-
-     
-
         starting_index += Total_To_Process
         Batch_Index += 1
         # write back progress
@@ -534,8 +526,80 @@ def process_update():
     print(colored('Done :)','cyan'))
     #TODO: we still have to write the logic for getting updates :(
 
+def CheckLastSerialHeader(item):
+    Failed=True
+    newlasterial=None
+    try:
+        header = requests.head(MAIN_Packages_List_Link + normalize(item))
+        newlasterial=header.headers['X-PyPI-Last-Serial']
+        Failed=False
+    except Exception as ex:
+        print (ex)
 
+    return Failed,item,newlasterial
 
+def CheckForLastSerialUpdates():
+    global GLOBAL_JSON_DATA
+    print (colored("Fetching Last Serial for packages, will save progress after after every %d batches" % (BackupProgeressAfterBatches),'yellow') )
+    TotalProcessed = 0
+    Total = len(GLOBAL_JSON_DATA)
+    To_Check_For_Updates = []
+    for k in GLOBAL_JSON_DATA:
+        if not GLOBAL_JSON_DATA[k]["last_serial"]==0 and not GLOBAL_JSON_DATA[k]["last_serial"] is None: # check updates for packages that never failed before, and never downloaded before
+            To_Check_For_Updates.append(k)# GLOBAL_JSON_DATA[k]["InitialProcessed"] = False
+        else:
+            TotalProcessed += 1
+    To_Check_For_Updates.sort()
+    print("Total Number of pacakges to check for updates: %s  out of  %s" % (colored(TotalProcessed,'cyan'),colored(Total,'red')))
+    starting_index = 0 
+    Batch_Index = 0
+    All_records=len(To_Check_For_Updates)
+    Total_Number_of_Batches = math.ceil(All_records/BatchSize)
+    print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,BatchSize),'cyan'))
+    BatchBackupCounter = 0
+    MaxCheckProcess=MaxDownloadProcess
+    while starting_index < All_records:
+        Total_To_Process = BatchSize
+        if All_records - starting_index < BatchSize:
+            Total_To_Process = All_records - starting_index
+            print (colored('Total to process less than Max Allowed, Changing total to: %d'% (Total_To_Process),'red'))
+        print (colored("Processing Batch %d     of     %d"%(Batch_Index + 1,Total_Number_of_Batches)   ,'green'))
+        itemBatch = To_Check_For_Updates[starting_index:starting_index+Total_To_Process]
+        printIndex = 0
+        packagesProcessString= "["
+        for i in itemBatch:
+            packagesProcessString += str(printIndex) + "-" + normalize(i) + ", "
+            printIndex += 1
+        packagesProcessString = packagesProcessString[:-2]
+        packagesProcessString += "]"
+        print (colored("Packages To Check",'blue'))
+        print (colored(packagesProcessString,'blue'))
+        CheckPool = ThreadPool(processes=MaxCheckProcess)
+        results = CheckPool.imap_unordered(CheckLastSerialHeader,itemBatch)
+        CheckPool.close()
+        CheckPool.join()
+        packagesToUpdateString = "["
+        for r in results:
+            failed,item,newlastserial = r
+            if not failed:
+                if not GLOBAL_JSON_DATA[item]['last_serial'] == newlastserial:
+                    packagesToUpdateString += normalize(item) + ", "
+                    #GLOBAL_JSON_DATA[item]['last_serial'] = None # we will change this package to None, so it will be process again in the main process_update function
+
+        packagesToUpdateString = packagesToUpdateString[:-2]
+        packagesToUpdateString += "]"
+        print (colored("Packages To Update",'green'))
+        print (colored(packagesToUpdateString,'green'))
+        starting_index += Total_To_Process
+        Batch_Index += 1
+        # write back progress
+        BatchBackupCounter += 1
+        # if BatchBackupCounter >= BackupProgeressAfterBatches:
+        #     print (colored("Backup Batches Counter= %d , Backing up Progress file, and create a backup" % BatchBackupCounter, 'magenta'))
+        #     BatchBackupCounter = 0 # reset the counter
+        #     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+        # else:
+        #     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=False)
 
 def start(argv):
 
@@ -569,9 +633,10 @@ def start(argv):
     while True:
         answer = input(colored("Enter yes or no: ",'magenta'))
         if answer.lower() == "yes":
-            if not DownloadPackagesList(local_temp_file_name):
-                exit("Failed to download packages list")
+            # if not DownloadPackagesList(local_temp_file_name):
+            #     exit("Failed to download packages list")
             LoadLocalPackageList(local_temp_file_name)
+            CheckForLastSerialUpdates()
             process_update()
             WriteLastUpdateFile()
             break
