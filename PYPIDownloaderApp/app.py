@@ -59,7 +59,7 @@ BlackListFile = os.path.join(working_path,"__blacklist")
 logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
 
 
-
+base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
 
 
 MAIN_INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
@@ -172,22 +172,43 @@ def timeStamped(fname, fmt='%Y-%m-%d-%H-%M-%S_{fname}'):
 
 GLOBAL_JSON_DATA = {}
 
-def start(argv):
-    # I want to get the path of app.py
-    global GLOBAL_JSON_DATA
-    base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
-    
-    if not os.path.exists(ROOT_FOLDER_NAME):
-        os.makedirs(ROOT_FOLDER_NAME,exist_ok=True)
-    if not os.path.exists(working_path):
-        os.makedirs(working_path, exist_ok=True)
-    if not os.path.exists(packages_data_path):
-        os.makedirs(packages_data_path, exist_ok=True)
+def DownloadPackagesList(local_temp_file_name):
+    try:
+        print ("Downloading All Packages list from: %s" % (colored(MAIN_Packages_List_Link,'green')) )
+        r = requests.get(MAIN_Packages_List_Link, timeout=600)
+        content=r.content
+        if os.path.exists(local_temp_file_name):
+            os.remove(local_temp_file_name)
+        with open(local_temp_file_name, 'wb') as f:
+            data=r.content
+            f.write(data)
+        return True
+    except Exception as ex:
+        print (ex)
+    return None
 
-    if not os.path.exists(logfile_path):
-        os.makedirs(logfile_path, exist_ok=True)
+def LoadLocalPackageList(local_temp_file_name):
+    global GLOBAL_JSON_DATA
+    content=None
+    with open(local_temp_file_name, 'r') as f:
+        content=f.read()
+    tree = html.fromstring(content)
+    package_list = [package for package in tree.xpath('//a/text()')]
+    # sort it
+    package_list.sort()
+   
+    # check old progress json file, if it exists, load it, and them compare if we have new package
+    if os.path.exists(JSON_progress_data_file):
+        print (colored("Making a backup and Loading existing json progress file: %s" %JSON_progress_data_file,'green'))
+        with open (JSON_progress_data_file,'rb') as f:
+            GLOBAL_JSON_DATA = json.loads(f.read())
+        # shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
+    else:
+        print (colored("No Previous progress file found, Creating new progress file: %s" %JSON_progress_data_file,'green'))
+        for p in package_list:
+            GLOBAL_JSON_DATA[p] = {"last_serial": None}
     
-    #check if black list file does not exists
+    # remove blacklisted from global_json_data
     if not os.path.exists(BlackListFile):
         print (colored("Blacklist file couldn't be found, creating one from template, review it and run the script again",'red'))
         shutil.copyfile(os.path.join(base_scirpt_path,"__blacklist_template"),BlackListFile)# Copy from template to destination
@@ -205,55 +226,49 @@ def start(argv):
                 if not str(line).startswith("#"):
                     BaclList_list.append(line)
                     cnt += 1
-    content=None
-    local_temp_file_name = os.path.join(working_path, "htmlfiles.temp.html")
-    if not SkipDownloadingListFile or not os.path.exists(local_temp_file_name):
-        print ("Downloading All Packages list from: %s" % (colored(MAIN_Packages_List_Link,'green')) )
-        r = requests.get(MAIN_Packages_List_Link, timeout=600)
-        content=r.content
-        if os.path.exists(local_temp_file_name):
-            os.remove(local_temp_file_name)
-        with open(local_temp_file_name, 'wb') as f:
-            data=r.content
-            f.write(data)
-    else:
-        print ("as requested, Skipping the download of all packages list, using existing data")
-    # open file for reading
-    with open(local_temp_file_name, 'r') as f:
-        content=f.read()
-    
-    tree = html.fromstring(content)
-    package_list = [package for package in tree.xpath('//a/text()')]
-    # sort it
-    package_list.sort()
-   
-    # check old progress json file, if it exists, load it, and them compare if we have new package
-    if os.path.exists(JSON_progress_data_file):
-        print (colored("Making a backup and Loading existing json progress file: %s" %JSON_progress_data_file,'green'))
-        with open (JSON_progress_data_file,'rb') as f:
-            GLOBAL_JSON_DATA = json.loads(f.read())
-        # shutil.copyfile(JSON_progress_data_file,JSON_progress_data_file+"_md5_"+GetMD5(JSON_progress_data_file) + ".json")
-    else:
-        print (colored("No Previous progress file found, Creating new progress file: %s" %JSON_progress_data_file,'green'))
-        for p in package_list:
-            GLOBAL_JSON_DATA[p] = {"last_serial": None}
-    print (colored("Filtering out blacklisted packages, if you recently added already downloaded package, you will have to manually delete its data, I'm not doing this for you...",'red'))
+    print (colored("Filtering out blacklisted packages, if you recently blacklisted downloaded package, you will have to manually delete its data, I'm not doing this for you...",'red'))
     print (colored("I'm not doing this because you may want to initially download the package, then stop future re-runs of the same package, got it?",'red'))
     for p in package_list:
         if p not in BaclList_list:
             if p not in GLOBAL_JSON_DATA: # this will cover the case if an item was blacklisted in previous progress, and now we want it now , AND, it will cover the case for new packages added to pypi
                  GLOBAL_JSON_DATA[p] = {"last_serial": None}
-    # remove blacklisted from global_json_data
     for p in BaclList_list: # this will cover the case if an item was wanted in previous progress, and now we need to ignore it
         if p in GLOBAL_JSON_DATA:
             del GLOBAL_JSON_DATA[p]
-
-    WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print("Total Number of pacakges: %s" % (colored(len(package_list),'cyan')))
     print("Total Number of pacakges NOT including blacklisted: %s" % (colored(len(GLOBAL_JSON_DATA),'cyan')))
 
     # clear package_list since we are not using it anymore
     package_list = None
+    WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
+
+def start(argv):
+    # I want to get the path of app.py
+    global GLOBAL_JSON_DATA
+    
+    
+    if not os.path.exists(ROOT_FOLDER_NAME):
+        os.makedirs(ROOT_FOLDER_NAME,exist_ok=True)
+    if not os.path.exists(working_path):
+        os.makedirs(working_path, exist_ok=True)
+    if not os.path.exists(packages_data_path):
+        os.makedirs(packages_data_path, exist_ok=True)
+
+    if not os.path.exists(logfile_path):
+        os.makedirs(logfile_path, exist_ok=True)
+    
+    #check if black list file does not exists
+    
+    
+    local_temp_file_name = os.path.join(working_path, "htmlfiles.temp.html")
+    if not os.path.exists(local_temp_file_name):
+        if not DownloadPackagesList(local_temp_file_name):
+            exit("Failed to download packages list")
+    # open file for reading
+    LoadLocalPackageList(local_temp_file_name)
+
+    
+    
     # return
     process_update()
     # # delete index.temp.json
@@ -261,6 +276,17 @@ def start(argv):
     print (colored("Writing last update file: %s"%LastUpdateFile,'red'))
     with open(LastUpdateFile,"w") as f:
         f.write(timeStamped(""))
+
+    print(colored("Download of all packages completed, Do you want to check for updated packages?",'cyan'))
+    while True:
+        answer = input(colored("Enter yes or no: ",'magenta'))
+        if answer.lower() == "yes":
+            pass
+            break
+        elif answer.lower() == "no":
+            break
+        else:
+            print(colored("just yes or no, I'll not accept any other stupid answer",'red'))
     # os.remove(local_temp_file_name)
     return
     # installRequired.CheckRequiredModuels(required_modules)
