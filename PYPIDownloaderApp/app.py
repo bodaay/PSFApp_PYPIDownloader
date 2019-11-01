@@ -465,7 +465,7 @@ def process_update():
     Total = len(GLOBAL_JSON_DATA)
     To_Initial_Process_Sorted = []
     for k in GLOBAL_JSON_DATA:
-        if GLOBAL_JSON_DATA[k]["last_serial"] is None:
+        if GLOBAL_JSON_DATA[k]["last_serial"] is None or GLOBAL_JSON_DATA[k]["last_serial"] == -1:
             To_Initial_Process_Sorted.append(k)# GLOBAL_JSON_DATA[k]["InitialProcessed"] = False
         else:
             TotalProcessed += 1
@@ -534,7 +534,7 @@ def CheckLastSerialHeader(item):
         newlasterial=header.headers['X-PyPI-Last-Serial']
         Failed=False
     except Exception as ex:
-        print (ex)
+        pass
 
     return Failed,item,newlasterial
 
@@ -584,7 +584,7 @@ def CheckForLastSerialUpdates():
             if not failed:
                 if not GLOBAL_JSON_DATA[item]['last_serial'] == newlastserial:
                     packagesToUpdateString += normalize(item) + ", "
-                    #GLOBAL_JSON_DATA[item]['last_serial'] = None # we will change this package to None, so it will be process again in the main process_update function
+                    #GLOBAL_JSON_DATA[item]['last_serial'] = -1 # we will change this package to -1, so it will be process again in the main process_update function
 
         packagesToUpdateString = packagesToUpdateString[:-2]
         packagesToUpdateString += "]"
