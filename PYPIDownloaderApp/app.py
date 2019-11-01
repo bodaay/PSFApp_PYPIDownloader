@@ -584,6 +584,7 @@ def CheckForLastSerialUpdates():
         for r in results:
             failed,item,newlastserial = r
             if not failed:
+                print (newlastserial)
                 if not GLOBAL_JSON_DATA[item]['last_serial'] == newlastserial:
                     packagesToUpdate.append(item)
                     #GLOBAL_JSON_DATA[item]['last_serial'] = -1 # we will change this package to -1, so it will be process again in the main process_update function
