@@ -584,14 +584,14 @@ def CheckForLastSerialUpdates():
         for r in results:
             failed,item,newlastserial = r
             if not failed:
-                if not GLOBAL_JSON_DATA[item]['last_serial'] == newlastserial:
+                if not GLOBAL_JSON_DATA[item]['last_serial'] == int(newlastserial,10):
                     packagesToUpdate.append({"name": item,"last_serial":newlastserial})
                     #GLOBAL_JSON_DATA[item]['last_serial'] = -1 # we will change this package to -1, so it will be process again in the main process_update function
         if len(packagesToUpdate) > 0:
             packagesToUpdateString = "["
             for p in packagesToUpdate:
-                packagesToUpdateString += normalize(p['name']) + " old_serial: " + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + " new_serial: " + colored(p['last_serial'],'green') + "\n"
-            packagesToUpdateString = packagesToUpdateString[:-1]
+                packagesToUpdateString += normalize(p['name']) + " old_serial: " + colored(GLOBAL_JSON_DATA[item]['last_serial'],'red') + " new_serial: " + colored(p['last_serial'],'green') + ", "
+            packagesToUpdateString = packagesToUpdateString[:-2]
             packagesToUpdateString += "]"
             print (colored("Packages To Update",'green'))
             print (colored(packagesToUpdateString,'green'))
