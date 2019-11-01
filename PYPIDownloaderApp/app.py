@@ -531,6 +531,7 @@ def CheckLastSerialHeader(item):
     newlasterial=None
     try:
         header = requests.head(MAIN_Packages_List_Link + normalize(item))
+        print (header)
         newlasterial=header.headers['X-PyPI-Last-Serial']
         Failed=False
     except:
