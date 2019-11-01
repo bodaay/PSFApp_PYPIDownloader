@@ -59,7 +59,7 @@ BlackListFile = os.path.join(working_path,"__blacklist")
 logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
 
 
-base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
+
 
 
 MAIN_INDEX_HTML_TEMPLATE="""<!DOCTYPE html>
@@ -176,7 +176,6 @@ def DownloadPackagesList(local_temp_file_name):
     try:
         print ("Downloading All Packages list from: %s" % (colored(MAIN_Packages_List_Link,'green')) )
         r = requests.get(MAIN_Packages_List_Link, timeout=600)
-        content=r.content
         if os.path.exists(local_temp_file_name):
             os.remove(local_temp_file_name)
         with open(local_temp_file_name, 'wb') as f:
@@ -189,6 +188,7 @@ def DownloadPackagesList(local_temp_file_name):
 
 def LoadLocalPackageList(local_temp_file_name):
     global GLOBAL_JSON_DATA
+    base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
     content=None
     with open(local_temp_file_name, 'r') as f:
         content=f.read()
@@ -242,54 +242,12 @@ def LoadLocalPackageList(local_temp_file_name):
     package_list = None
     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
 
-def start(argv):
-    # I want to get the path of app.py
-    global GLOBAL_JSON_DATA
-    
-    
-    if not os.path.exists(ROOT_FOLDER_NAME):
-        os.makedirs(ROOT_FOLDER_NAME,exist_ok=True)
-    if not os.path.exists(working_path):
-        os.makedirs(working_path, exist_ok=True)
-    if not os.path.exists(packages_data_path):
-        os.makedirs(packages_data_path, exist_ok=True)
-
-    if not os.path.exists(logfile_path):
-        os.makedirs(logfile_path, exist_ok=True)
-    
-    #check if black list file does not exists
-    
-    
-    local_temp_file_name = os.path.join(working_path, "htmlfiles.temp.html")
-    if not os.path.exists(local_temp_file_name):
-        if not DownloadPackagesList(local_temp_file_name):
-            exit("Failed to download packages list")
-    # open file for reading
-    LoadLocalPackageList(local_temp_file_name)
-
-    
-    
-    # return
-    process_update()
-    # # delete index.temp.json
-    LastUpdateFile = os.path.join(working_path,timeStamped("_last_updated"))
+def WriteLastUpdateFile():
+    LastUpdateFile = os.path.join(working_path,"__last_updated")
     print (colored("Writing last update file: %s"%LastUpdateFile,'red'))
     with open(LastUpdateFile,"w") as f:
         f.write(timeStamped(""))
 
-    print(colored("Download of all packages completed, Do you want to check for updated packages?",'cyan'))
-    while True:
-        answer = input(colored("Enter yes or no: ",'magenta'))
-        if answer.lower() == "yes":
-            pass
-            break
-        elif answer.lower() == "no":
-            break
-        else:
-            print(colored("just yes or no, I'll not accept any other stupid answer",'red'))
-    # os.remove(local_temp_file_name)
-    return
-    # installRequired.CheckRequiredModuels(required_modules)
 
 
 def WriteTextFile(filename,data):
@@ -499,7 +457,7 @@ def WriteMainIndexHTML():
 
 
 def process_update():
-    global GLOBAL_JSON_DATA,ProcessPools
+    global GLOBAL_JSON_DATA
     print (colored("Checking Initial Download for packages, at this stage we are NOT updating downloaded packages",'cyan'))
     # in this stage, we will just check if we have the json file for ever package in the list
     # if we don't have the json file, we will append the package to the list of ToProcess
@@ -575,3 +533,52 @@ def process_update():
     WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True) # just make another backup once we finish
     print(colored('Done :)','cyan'))
     #TODO: we still have to write the logic for getting updates :(
+
+
+
+
+def start(argv):
+
+    global GLOBAL_JSON_DATA
+    base_scirpt_path = os.path.dirname(os.path.realpath(__file__))
+    if not os.path.exists(ROOT_FOLDER_NAME):
+        os.makedirs(ROOT_FOLDER_NAME,exist_ok=True)
+    if not os.path.exists(working_path):
+        os.makedirs(working_path, exist_ok=True)
+    if not os.path.exists(packages_data_path):
+        os.makedirs(packages_data_path, exist_ok=True)
+
+    if not os.path.exists(logfile_path):
+        os.makedirs(logfile_path, exist_ok=True)
+    
+    #check if black list file does not exists
+    
+    
+    local_temp_file_name = os.path.join(working_path, "htmlfiles.temp.html")
+    if not os.path.exists(local_temp_file_name):
+        if not DownloadPackagesList(local_temp_file_name):
+            exit("Failed to download packages list")
+    # open file for reading
+    LoadLocalPackageList(local_temp_file_name)
+
+    process_update()
+
+    WriteLastUpdateFile()
+
+    print(colored("Download of all packages completed, Do you want to start update process?",'cyan'))
+    while True:
+        answer = input(colored("Enter yes or no: ",'magenta'))
+        if answer.lower() == "yes":
+            if not DownloadPackagesList(local_temp_file_name):
+                exit("Failed to download packages list")
+            LoadLocalPackageList(local_temp_file_name)
+            process_update()
+            WriteLastUpdateFile()
+            break
+        elif answer.lower() == "no":
+            break
+        else:
+            print(colored("just yes or no, I'll not accept any other stupid answer",'red'))
+    # os.remove(local_temp_file_name)
+    return
+    # installRequired.CheckRequiredModuels(required_modules)
