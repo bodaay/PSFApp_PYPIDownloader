@@ -24,7 +24,8 @@ import tqdm  # pip3 install tqdm
 import re
  
 BatchSize = 30
-MaxDownloadProcess = 50
+MaxDownloadProcess = 10
+MaxThreadsPools=30
 MaxNumberOfDownloadRetries = 2
 BackupProgeressAfterBatches = 5
 DONWLOAD_CHUNK_SIZE_MB = 4
@@ -263,11 +264,11 @@ def SaveAdnAppendToErrorLog(data):
 
 
 # ProcessPools = []
-DownloadPool = None
+# DownloadPool = None
 def signal_handler(sig, frame):
     global DownloadPool
-    if DownloadPool:
-        DownloadPool.terminate()
+    # if DownloadPool:
+    #     DownloadPool.terminate()
     print('\nYou pressed Ctrl+C!')
     print('\nTerminating All Processes')
     # for p in ProcessPools:
@@ -330,7 +331,7 @@ def DownloadPackage(package_file):
 
     return Failed,Error,package_file
 def DownloadAndProcessesItemJob(key):
-    global DownloadPool
+    # global DownloadPool
     normalize_package_name = normalize(key)
     # steps to be done
     # 1- Get the json file, and save a copy in the respected folder
@@ -380,7 +381,7 @@ def DownloadAndProcessesItemJob(key):
             for rr in releases[r]:
                 package_file = {"filename":rr['filename'],"size":rr['size'],"url":rr['url'],"packagetype":rr['packagetype'],"requires_python":rr['requires_python'],"has_sig":rr['has_sig'],"digests":rr['digests'],"downloadPath":binariespath}
                 packages_to_download.append(package_file)
-        DownloadPool = Pool(processes=MaxDownloadProcess)
+        DownloadPool = ThreadPool(processes=MaxDownloadProcess)
         # got the below from: https://stackoverflow.com/questions/41920124/multiprocessing-use-tqdm-to-display-a-progress-bar/45276885
         results = DownloadPool.imap(DownloadPackage,packages_to_download)
         # add them to processpools
@@ -395,7 +396,7 @@ def DownloadAndProcessesItemJob(key):
             else:
                 downloaded_releases.append(pfile)
             
-        DownloadPool=None
+        # DownloadPool=None
         # write the index.html file
         links_html_string = ""
         for d in downloaded_releases:
@@ -494,13 +495,17 @@ def process_update():
         packagesProcessString = packagesProcessString[:-2]
         packagesProcessString += "]"
         print (colored(packagesProcessString,'blue'))
- 
+
+        ProcessPool = ThreadPool(processes=MaxThreadsPools)
         # we are processing package by package, each package will get multiple processes for downloading
-        list(tqdm.tqdm(map(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+        list(tqdm.tqdm(ProcessPool.imap_unordered(DownloadAndProcessesItemJob,itemBatch), total=len(itemBatch), ))
+        ProcessPool.close()
+        ProcessPool.join()
         starting_index += Total_To_Process
         Batch_Index += 1
         # write back progress
         BatchBackupCounter += 1
+        
         # check each package __lastserial file
         for p in itemBatch:
             normalize_package_name = normalize(p)
@@ -558,7 +563,7 @@ def CheckForLastSerialUpdates():
     Total_Number_of_Batches = math.ceil(All_records/CheckBatchSize)
     print (colored('Total Number of batches: %d with %d packages for each batch'%(Total_Number_of_Batches,CheckBatchSize),'cyan'))
     BatchBackupCounter = 0
-    MaxCheckProcess=MaxDownloadProcess * 2 # for checking, we will double the connection numbers
+    MaxCheckProcess=MaxThreadsPools * 2 # for checking, we will double the connection numbers
     TotalpackagesToUpdate = 0
     while starting_index < All_records:
         Total_To_Process = CheckBatchSize
