@@ -641,8 +641,8 @@ def start(argv):
     while True:
         answer = input(colored("Enter yes or no: ",'magenta'))
         if answer.lower() == "yes":
-            # if not DownloadPackagesList(local_temp_file_name):
-            #     exit("Failed to download packages list")
+            if not DownloadPackagesList(local_temp_file_name):
+                exit("Failed to download packages list")
             LoadLocalPackageList(local_temp_file_name)
             CheckForLastSerialUpdates()
             process_update()
