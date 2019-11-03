@@ -53,10 +53,11 @@ ROOT
 
 working_path = os.path.join(ROOT_FOLDER_NAME,"sync_data_indexes")
 packages_data_path = os.path.join(ROOT_FOLDER_NAME, "simple")
-logfile_path = os.path.join(working_path, "logs")
+errors_global_path = os.path.join(working_path, "errors")
 JSON_progress_data_file = os.path.join(working_path,"__progress.json")
 BlackListFile = os.path.join(working_path,"__blacklist")
-logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
+# logfile_path = os.path.join(working_path, "logs")
+# logFileName = os.path.join(logfile_path,datetime.now().strftime('FailedList_%d-%m-%Y_%H_%M.log'))
 
 
 
@@ -254,13 +255,6 @@ def WriteTextFile(filename,data):
     with open (filename,'a+') as f:
         f.writelines(data)
 
-def SaveAdnAppendToErrorLog(data):
-    # timeS = datetime.now().strftime('FailedList__%H_%M_%d_%m_%Y.log.json')
-    try:
-        with open(logFileName, "a+") as outfile:
-            outfile.write(data)
-    except Exception as ex:
-        print (ex)
 
 
 # ProcessPools = []
@@ -325,8 +319,6 @@ def DownloadPackage(package_file):
         
     except Exception as ex:
         Error = str.format("Error in Downlading: %s" %(ex))
-        # ErrorLog = "File %s\n%s\n" % (key, ex)
-        # SaveAdnAppendToErrorLog(ErrorLog)
         Failed = True
 
     return Failed,Error,package_file
@@ -343,31 +335,31 @@ def DownloadAndProcessesItemJob(key):
     try:
         r = requests.get(JSON_Info_Link_Prefix + normalize_package_name + "/json/",timeout=10)
         package_path = os.path.join(packages_data_path,normalize_package_name)
+        packageFolderErrors = os.path.join(errors_global_path, normalize_package_name)
         package_json_path = os.path.join(package_path,"json")
         jsonfile = os.path.join(package_json_path,"index.json")
         indexfile = os.path.join(package_path,"index.html")
         serialfile = os.path.join(package_path,"__lastserial")
-        errorfile = os.path.join(package_path,"__errors")
-        genericErrorfile = os.path.join(package_path,"__generic_error")
+        errorfilelocal = os.path.join(package_path,"__errors")
+        errorfileglobal = os.path.join(packageFolderErrors,"__errors")
         binariespath = os.path.join(package_path,"binaries")
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
-        # if there was an exists error file, delete it
-        if os.path.exists(errorfile):
-            os.remove(errorfile)
-        # if there wasgeneric error file, delete it
-        if os.path.exists(genericErrorfile):
-            os.remove(genericErrorfile)
+
+        Errors = []
         #if below fails, no need to go any further, just return
         jsonObj=None
-        try:
-            jsonContent_raw = r.content
-            jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
-        except Exception as ex:
-            WriteFailedFile(errorfile,str.format("Error in getting json: %s" %(ex)),overwrite=True)
-            return
         
+        jsonContent_raw = r.content
+        jsonObj = json.loads(jsonContent_raw) # i'll re-write the json with indent, I cannot read this shit as single line, and its better to make sure we actually downloading a json file
         
+        # if there was an existing error file, delete it
+        if os.path.exists(errorfilelocal):
+            os.remove(errorfilelocal)
+        # delete global error folder
+        if os.path.exists(packageFolderErrors):
+            shutil.rmtree(packageFolderErrors)
+
         with open(jsonfile,'wb') as f:
             f.write(bytes(json.dumps(jsonObj,indent=2),'utf-8'))
         last_serial = jsonObj['last_serial']
@@ -392,11 +384,9 @@ def DownloadAndProcessesItemJob(key):
         for r in results:
             failed,errorvalue,pfile=r
             if failed:
-                WriteFailedFile(errorfile,str.format("Error in Downlading: %s" %(errorvalue)),overwrite=False)
+                Errors.append(str.format("Error in Downlading: %s" %(errorvalue)))
             else:
                 downloaded_releases.append(pfile)
-            
-        # DownloadPool=None
         # write the index.html file
         links_html_string = ""
         for d in downloaded_releases:
@@ -423,16 +413,21 @@ def DownloadAndProcessesItemJob(key):
         # write serial file
         if os.path.exists(serialfile):
             os.remove(serialfile)
+
+            
         with open(serialfile,'w') as f:
             f.write(str.format("%d"%last_serial))
         # item['last_serial'] = last_serial
         
     except Exception as ex:
-        WriteFailedFile(genericErrorfile,str.format("Other Errors: %s" %(ex)),overwrite=True) # here an error can occur because of ctrl+c press, thats why I'm saving this into new file
-        # ErrorLog = "Pacakge %s\n%s\n" % (key, ex)
-        # SaveAdnAppendToErrorLog(ErrorLog)
-        
-    return
+        Errors.append(str.format("Other Errors: %s" %(ex)))
+
+    if len(Errors)>0:
+        WriteFailedFile(errorfilelocal,json.dumps(Errors))
+        os.makedirs(packageFolderErrors,exist_ok=True)
+        WriteFailedFile(errorfileglobal,json.dumps(Errors))
+        return False
+    return True
 
 def WriteMainIndexHTML():
     mainIndexFile = os.path.join(packages_data_path,"index.html")
@@ -629,8 +624,8 @@ def start(argv):
     if not os.path.exists(packages_data_path):
         os.makedirs(packages_data_path, exist_ok=True)
 
-    if not os.path.exists(logfile_path):
-        os.makedirs(logfile_path, exist_ok=True)
+    if not os.path.exists(errors_global_path):
+        os.makedirs(errors_global_path, exist_ok=True)
     
     #check if black list file does not exists
     
