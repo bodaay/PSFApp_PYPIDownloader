@@ -276,13 +276,9 @@ def normalize(name): # got it from: https://www.python.org/dev/peps/pep-0503/
     return re.sub(r"[-_.]+", "-", name).lower()
 
 # outputQueue = Queue(MaxItemsToProcess)
-def WriteFailedFile(filefail,txt,overwrite=False):
-    if overwrite:
-        with open(filefail, 'w') as f:
-            f.write(str(txt))
-    else: # append
-        with open(filefail, 'a+') as f:
-            f.write(str(txt))
+def WriteFailedFile(filefail,txt):
+    with open(filefail, 'w') as f:
+        f.write(str(txt))
 
 
 def DownloadPackage(package_file):
@@ -414,7 +410,7 @@ def DownloadAndProcessesItemJob(key):
         if os.path.exists(serialfile):
             os.remove(serialfile)
 
-            
+
         with open(serialfile,'w') as f:
             f.write(str.format("%d"%last_serial))
         # item['last_serial'] = last_serial
