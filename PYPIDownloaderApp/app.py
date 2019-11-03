@@ -260,9 +260,12 @@ def WriteTextFile(filename,data):
 # ProcessPools = []
 # DownloadPool = None
 def signal_handler(sig, frame):
-    global DownloadPool
+    # global DownloadPool
     # if DownloadPool:
     #     DownloadPool.terminate()
+    print('\nYou pressed Ctrl+C!')
+    if len(GLOBAL_JSON_DATA) > 0:
+        WriteProgressJSON(GLOBAL_JSON_DATA,saveBackup=True)
     print('\nYou pressed Ctrl+C!')
     print('\nTerminating All Processes')
     # for p in ProcessPools:
@@ -587,8 +590,8 @@ def CheckForLastSerialUpdates():
         if len(packagesToUpdate) > 0:
             packagesToUpdateString = "["
             for p in packagesToUpdate:
-                packagesToUpdateString += normalize(p['name']) + ": " + colored("%d"%GLOBAL_JSON_DATA[item]['last_serial'],'red') + "/" + colored("%d"%p['last_serial'],'green') + ", "
-                GLOBAL_JSON_DATA[item]['last_serial'] = -1 # set it to -1 so it will be process again in the main process_update function
+                packagesToUpdateString += normalize(p['name']) + ": " + colored("%d"%GLOBAL_JSON_DATA[p['name']]['last_serial'],'red') + "/" + colored("%d"%p['last_serial'],'green') + ", "
+                GLOBAL_JSON_DATA[p['name']]['last_serial'] = -1 # set it to -1 so it will be process again in the main process_update function
         if len(packagesToUpdate) > 0:
             print(colored("Total Marked for updates: %d" % len(packagesToUpdate),'yellow'))
             packagesToUpdateString = packagesToUpdateString[:-2]
