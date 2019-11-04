@@ -629,7 +629,7 @@ def start(argv):
     nginx_detination_file = os.path.join(working_path,"pypi.green.org")
     if not os.path.exists(nginx_detination_file):
         shutil.copyfile(nginx_original_template_path, nginx_detination_file)
-        print (colored("Copied nginx stie setting template to: %s"%nginx_detination_file,'green'))
+        print (colored("Copied nginx site setting template to: %s"%nginx_detination_file,'green'))
     #check if black list file does not exists
     
     
