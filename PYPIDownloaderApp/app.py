@@ -625,7 +625,11 @@ def start(argv):
 
     if not os.path.exists(errors_global_path):
         os.makedirs(errors_global_path, exist_ok=True)
-    
+    nginx_original_template_path = os.path.join(base_scirpt_path,"__nginx_template")
+    nginx_detination_file = os.path.join(working_path,"pypi.green.org")
+    if not os.path.exists(nginx_detination_file):
+        shutil.copyfile(nginx_original_template_path, nginx_detination_file)
+        print (colored("Copied nginx stie setting template to: %s"%nginx_detination_file,'green'))
     #check if black list file does not exists
     
     

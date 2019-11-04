@@ -1,0 +1,9 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name pypi.green.org;
+    root /Synology/PYPI/simple/;
+    index index.html index.json
+    charset utf-8;
+    autoindex off;
+}
