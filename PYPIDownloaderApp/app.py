@@ -425,7 +425,7 @@ def DownloadAndProcessesItemJob(key):
     if len(Errors)>0:
         WriteFailedFile(errorfilelocal,json.dumps(Errors))
         os.makedirs(packageFolderErrors,exist_ok=True)
-        WriteFailedFile(errorfileglobal,json.dumps(Errors))
+        #WriteFailedFile(errorfileglobal,json.dumps(Errors))
         return False
     return True
 
