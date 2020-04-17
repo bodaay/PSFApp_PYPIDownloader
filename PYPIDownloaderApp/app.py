@@ -332,6 +332,7 @@ def DownloadAndProcessesItemJob(key):
     # save __lastserial as text file withn package folder
     # Get the json file
     try:
+        Errors = []
         r = requests.get(JSON_Info_Link_Prefix + normalize_package_name + "/json/",timeout=10)
         package_path = os.path.join(packages_data_path,normalize_package_name)
         packageFolderErrors = os.path.join(errors_global_path, normalize_package_name)
@@ -345,7 +346,7 @@ def DownloadAndProcessesItemJob(key):
         os.makedirs(binariespath,exist_ok=True)
         os.makedirs(package_json_path,exist_ok=True)
 
-        Errors = []
+        
         #if below fails, no need to go any further, just return
         jsonObj=None
         
